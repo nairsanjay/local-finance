@@ -1,0 +1,69 @@
+name: Bank / Statement Parser Request
+description: Request support for a new Indian bank, credit card, or statement format
+title: "[Bank Support]: "
+labels: ["parser", "enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ### Requesting Support for a New Bank or Format
+        LocalFinance has an extensible parser engine (`internal/parser/`). We welcome requests for new banks!
+        
+        ⚠️ **CRITICAL PRIVACY NOTICE**:
+        Do **NOT** upload real bank statements containing your real name, account numbers, transactions, or passwords.
+        Instead, describe the table headers, date formats, or create a mock/synthetic test file.
+  - type: input
+    id: bank_name
+    attributes:
+      label: Bank & Institution Name
+      placeholder: e.g., State Bank of India (SBI), Kotak Mahindra Bank, IDFC FIRST Bank
+    validations:
+      required: true
+  - type: dropdown
+    id: account_type
+    attributes:
+      label: Account / Product Type
+      options:
+        - Savings Account
+        - Current Account
+        - Credit Card
+        - Salary Account
+    validations:
+      required: true
+  - type: checkboxes
+    id: format
+    attributes:
+      label: Statement File Format(s) Provided by Bank
+      options:
+        - label: PDF (Password-Protected)
+        - label: PDF (Unprotected)
+        - label: CSV (.csv)
+        - label: Excel (.xlsx / .xls)
+  - type: textarea
+    id: column_headers
+    attributes:
+      label: Column Headers & Layout
+      description: Copy and paste the header row or table format (redacting all real data).
+      placeholder: |
+        e.g.,
+        Date | Description | Chq / Ref No | Value Dt | Withdrawal Amt | Deposit Amt | Closing Balance
+    validations:
+      required: true
+  - type: textarea
+    id: sample_narration
+    attributes:
+      label: Sample Narration Strings (Sanitized)
+      description: Provide typical narration patterns used by this bank (replace names and real account numbers with dummy text).
+      placeholder: |
+        UPI/123456789012/PAYEE NAME/payee@bank/App
+        POS 12345600 SWIGGY BANGALORE
+        NEFT CR-PUNBH1234567-EMPLOYER CORP-SALARY
+    validations:
+      required: false
+  - type: checkboxes
+    id: privacy-confirm
+    attributes:
+      label: Privacy Confirmation
+      options:
+        - label: I have verified that all personal names, account numbers, and transaction amounts have been redacted or replaced with dummy values.
+          required: true

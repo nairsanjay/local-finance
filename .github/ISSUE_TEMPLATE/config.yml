@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: GitHub Discussions
+    url: https://github.com/usmslm102/local-finance/discussions
+    about: Ask questions, share setup ideas, or discuss parser tips with the community.

@@ -1,0 +1,31 @@
+name: Feature Request
+description: Propose a new feature, visualization, or enhancement for LocalFinance
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for suggesting an idea! Please ensure the requested feature aligns with LocalFinance's core philosophy: **100% offline, privacy-first, zero telemetry, and single standalone binary**.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Is your feature request related to a problem?
+      description: A clear description of the limitation or workflow problem.
+      placeholder: "I'm always frustrated when..."
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: Describe the solution you'd like to see.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Any alternative solutions or workarounds you've thought of.
+    validations:
+      required: false

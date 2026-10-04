@@ -1,0 +1,63 @@
+name: Bug Report
+description: Report an issue or unexpected behavior in LocalFinance
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting an issue!
+        
+        ⚠️ **PRIVACY WARNING**: NEVER post real bank account numbers, passwords, real salary figures, or unredacted PDF statements. Use placeholder data (e.g., `XXXX1234`, `RAHUL SHARMA`) for any examples.
+  - type: input
+    id: version
+    attributes:
+      label: LocalFinance Version / Release
+      placeholder: e.g., v1.0.0 or commit hash
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      options:
+        - macOS (Apple Silicon M1/M2/M3/M4)
+        - macOS (Intel x86_64)
+        - Windows 10/11 (64-bit)
+        - Linux (x86_64)
+        - Linux (ARM64)
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the Bug
+      description: A clear and concise description of what the bug is.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: How can we reproduce the issue?
+      placeholder: |
+        1. Start application via './local-finance'
+        2. Go to 'Import' tab
+        3. Upload a sample statement...
+        4. See error...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen instead?
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy-confirm
+    attributes:
+      label: Privacy Confirmation
+      options:
+        - label: I have verified that NO real passwords, real account numbers, or personal banking information are included in this report.
+          required: true
