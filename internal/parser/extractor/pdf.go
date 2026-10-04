@@ -1,0 +1,208 @@
+package extractor
+
+import (
+	"bytes"
+	"fmt"
+	"io"
+	"sort"
+	"strings"
+
+	"github.com/dslipak/pdf"
+	"github.com/pdfcpu/pdfcpu/pkg/api"
+	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/model"
+)
+
+// PositionalElement represents a word or token at a specific horizontal coordinate
+type PositionalElement struct {
+	X float64
+	S string
+}
+
+// PositionalRow represents a horizontal row of text elements on a specific page
+type PositionalRow struct {
+	Page     int
+	Y        float64
+	Elements []PositionalElement
+}
+
+// ExtractPDFPositionalRows extracts spatially ordered rows and words from each page
+func ExtractPDFPositionalRows(r io.Reader, password string) ([]PositionalRow, error) {
+	data, err := io.ReadAll(r)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read PDF content: %w", err)
+	}
+
+	if len(data) == 0 {
+		return nil, fmt.Errorf("empty PDF file")
+	}
+
+	// 1. Decrypt if needed
+	decryptedBytes, err := DecryptPDFIfNeeded(data, password)
+	if err != nil {
+		return nil, err
+	}
+
+	// 2. Read with dslipak/pdf
+	pdfReader, err := pdf.NewReader(bytes.NewReader(decryptedBytes), int64(len(decryptedBytes)))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse PDF structure: %w", err)
+	}
+
+	var allRows []PositionalRow
+	numPages := pdfReader.NumPage()
+
+	for pageIndex := 1; pageIndex <= numPages; pageIndex++ {
+		p := pdfReader.Page(pageIndex)
+		if p.V.IsNull() {
+			continue
+		}
+		content := p.Content()
+		texts := content.Text
+
+		// Sort text by Y desc (top to bottom), X asc (left to right)
+		sort.SliceStable(texts, func(i, j int) bool {
+			diff := texts[i].Y - texts[j].Y
+			if diff > 1.0 {
+				return true
+			} else if diff < -1.0 {
+				return false
+			}
+			return texts[i].X < texts[j].X
+		})
+
+		// Group characters into continuous words/blocks with intelligent spacing
+		var curY float64 = -999
+		var curRow []PositionalElement
+		var curWord strings.Builder
+		var wordStartX float64 = 0
+		var lastCharEndX float64 = 0
+
+		flushWord := func() {
+			if curWord.Len() > 0 {
+				curRow = append(curRow, PositionalElement{X: wordStartX, S: strings.TrimSpace(curWord.String())})
+				curWord.Reset()
+			}
+		}
+
+		flushRow := func() {
+			flushWord()
+			if len(curRow) > 0 {
+				allRows = append(allRows, PositionalRow{Page: pageIndex, Y: curY, Elements: curRow})
+				curRow = nil
+			}
+		}
+
+		for _, t := range texts {
+			if curY == -999 || curY-t.Y > 1.0 || t.Y-curY > 1.0 {
+				flushRow()
+				curY = t.Y
+				wordStartX = t.X
+				lastCharEndX = t.X + t.W
+				curWord.WriteString(t.S)
+			} else {
+				// Same line: check gap between end of previous char and start of this char
+				gap := t.X - lastCharEndX
+				if gap > 0.8 {
+					if gap > 12.0 {
+						// Large column gap -> new column element
+						flushWord()
+						wordStartX = t.X
+					} else {
+						// Inter-word space within same column text
+						curWord.WriteString(" ")
+					}
+				}
+				curWord.WriteString(t.S)
+				lastCharEndX = t.X + t.W
+			}
+		}
+		flushRow()
+	}
+
+	return allRows, nil
+}
+
+// ExtractPDFLines extracts clean non-empty text lines from a PDF file (supporting password decryption)
+func ExtractPDFLines(r io.Reader, password string) ([]string, error) {
+	rows, err := ExtractPDFPositionalRows(r, password)
+	if err != nil {
+		return nil, err
+	}
+
+	var lines []string
+	for _, row := range rows {
+		var parts []string
+		for _, el := range row.Elements {
+			parts = append(parts, el.S)
+		}
+		line := strings.Join(parts, " ")
+		trimmed := strings.TrimSpace(line)
+		if trimmed != "" {
+			lines = append(lines, trimmed)
+		}
+	}
+
+	return lines, nil
+}
+
+// ExtractPDFText extracts the entire raw plain text across all pages
+func ExtractPDFText(r io.Reader, password string) (string, error) {
+	lines, err := ExtractPDFLines(r, password)
+	if err != nil {
+		return "", err
+	}
+	return strings.Join(lines, "\n"), nil
+}
+
+// IsPDFEncrypted checks if a PDF requires a password to open
+func IsPDFEncrypted(r io.Reader) bool {
+	data, err := io.ReadAll(r)
+	if err != nil || len(data) < 4 || string(data[:4]) != "%PDF" {
+		return false
+	}
+
+	conf := model.NewDefaultConfiguration()
+	conf.UserPW = ""
+	var out bytes.Buffer
+	err = api.Decrypt(bytes.NewReader(data), &out, conf)
+	if err == nil {
+		return false
+	}
+	errStr := strings.ToLower(err.Error())
+	if strings.Contains(errStr, "not encrypted") {
+		return false
+	}
+	if strings.Contains(errStr, "password") || strings.Contains(errStr, "encryption setup") || strings.Contains(errStr, "encrypt") {
+		return true
+	}
+	return false
+}
+
+// DecryptPDFIfNeeded checks if the PDF is encrypted and decrypts it with the given password.
+// If the PDF is unencrypted, it returns the original data untouched.
+func DecryptPDFIfNeeded(data []byte, password string) ([]byte, error) {
+	if len(data) < 4 || string(data[:4]) != "%PDF" {
+		return data, nil
+	}
+
+	conf := model.NewDefaultConfiguration()
+	conf.UserPW = strings.TrimSpace(password)
+	conf.OwnerPW = strings.TrimSpace(password)
+	conf.WriteObjectStream = false
+	conf.WriteXRefStream = false
+
+	var decryptedBuf bytes.Buffer
+	err := api.Decrypt(bytes.NewReader(data), &decryptedBuf, conf)
+	if err != nil {
+		errStr := strings.ToLower(err.Error())
+		if strings.Contains(errStr, "not encrypted") {
+			return data, nil
+		}
+		if strings.TrimSpace(password) == "" {
+			return nil, fmt.Errorf("this statement is password-protected. Please enter your statement password")
+		}
+		return nil, fmt.Errorf("incorrect password or unable to decrypt PDF: %w", err)
+	}
+
+	return decryptedBuf.Bytes(), nil
+}

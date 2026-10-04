@@ -1,0 +1,127 @@
+import React from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { fetchCategories, fetchRules } from '@/lib/api'
+import { Tags, Sliders, CheckCircle2 } from 'lucide-react'
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+
+export const RulesManager: React.FC = () => {
+  const { data: categories } = useQuery({
+    queryKey: ['categories'],
+    queryFn: fetchCategories,
+  })
+
+  const { data: rules } = useQuery({
+    queryKey: ['rules'],
+    queryFn: fetchRules,
+  })
+
+  return (
+    <div className="space-y-8">
+      {/* Categories Grid */}
+      <Card className="border-border/80 bg-card shadow-xs">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-base font-semibold flex items-center gap-2">
+                <Tags className="h-4 w-4 text-primary" /> Spending Categories
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Classification system tailored for Indian personal and household finances
+              </CardDescription>
+            </div>
+            <Badge variant="secondary" className="text-xs font-mono">
+              {categories?.length || 0} Categories
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+            {categories?.map((cat) => (
+              <div
+                key={cat.id}
+                className="flex items-center gap-3 rounded-lg border border-border/70 bg-muted/30 p-3 transition-colors hover:border-border"
+              >
+                <div
+                  className="h-3 w-3 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: cat.color_hex }}
+                />
+                <div className="truncate">
+                  <p className="text-xs font-semibold text-foreground truncate">{cat.name}</p>
+                  <p className="text-[10px] text-muted-foreground font-medium">
+                    {cat.is_system ? 'System' : 'Custom'}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Auto-Categorization Rules Table */}
+      <Card className="border-border/80 bg-card shadow-xs">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-base font-semibold flex items-center gap-2">
+                <Sliders className="h-4 w-4 text-primary" /> Auto-Categorization Rules
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Keyword and regex pattern matchers that classify incoming UPI VPAs, POS merchant names, and narrations
+              </CardDescription>
+            </div>
+            <Badge variant="secondary" className="text-xs font-mono">
+              {rules?.length || 0} Rules
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="text-xs font-semibold uppercase">Priority</TableHead>
+                  <TableHead className="text-xs font-semibold uppercase">Match Field</TableHead>
+                  <TableHead className="text-xs font-semibold uppercase">Type</TableHead>
+                  <TableHead className="text-xs font-semibold uppercase">Pattern / Keyword</TableHead>
+                  <TableHead className="text-xs font-semibold uppercase">Assigned Category</TableHead>
+                  <TableHead className="text-xs font-semibold uppercase text-right">Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rules?.map((r) => (
+                  <TableRow key={r.id} className="hover:bg-muted/40 text-xs">
+                    <TableCell className="font-mono text-muted-foreground">{r.priority}</TableCell>
+                    <TableCell className="font-mono text-foreground">{r.match_field}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="font-mono text-[10px] uppercase">
+                        {r.match_type}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="font-mono font-medium text-emerald-400">{r.match_pattern}</TableCell>
+                    <TableCell className="font-semibold text-foreground">
+                      {r.target_category || r.target_category_id}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <span className="inline-flex items-center text-[11px] font-medium text-emerald-400">
+                        <CheckCircle2 className="mr-1 h-3.5 w-3.5" /> Active
+                      </span>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
