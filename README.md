@@ -1,7 +1,23 @@
 # 🇮🇳 LocalFinance
 
+[![CI](https://github.com/usmslm102/local-finance/actions/workflows/ci.yml/badge.svg)](https://github.com/usmslm102/local-finance/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Website](https://img.shields.io/badge/Website-usamaansari.com-emerald)](https://usamaansari.com/local-finance/)
+[![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey)](https://github.com/usmslm102/local-finance/releases)
+[![Architecture](https://img.shields.io/badge/Architecture-100%25%20Offline-success)](https://github.com/usmslm102/local-finance)
+
 > **A privacy-first, 100% offline personal finance intelligence app tailored for the Indian banking & credit card ecosystem.**  
 > Distributed as a **single standalone executable binary** with an embedded React frontend and an embedded pure-Go SQLite database.
+
+> [!IMPORTANT]
+> ### ⚖️ Disclaimer & Notice of Liability (Use at Your Own Risk)
+> **LocalFinance is an independent open-source software project distributed under the terms of the [MIT License](LICENSE).**
+>
+> - **"AS IS" & Use at Your Own Risk**: This software is provided **"AS IS"**, without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose, and non-infringement. You use this application entirely at your own discretion and risk.
+> - **No Financial, Tax, or Legal Advice**: LocalFinance is an offline analytical and record-keeping tool. It does not provide financial planning, accounting, investment, tax, or legal advice.
+> - **No Banking Affiliation**: LocalFinance is completely independent and is not affiliated with, endorsed by, sponsored by, or connected to HDFC Bank, ICICI Bank, Axis Bank, State Bank of India (SBI), the Reserve Bank of India (RBI), or any other financial institution. All bank names, brand trademarks, and logos are property of their respective owners and are referenced solely for identification and parser compatibility.
+> - **Zero Liability**: To the maximum extent permitted by applicable law, in no event shall the authors, maintainers, copyright holders, or contributors be held liable for any claim, damages, losses, or legal liabilities—whether in contract, tort (including negligence), or otherwise—arising from, out of, or in connection with the software, its calculations, parser extractions, categorization rules, data loss, miscalculated figures, financial decisions, tax assessments, or any consequences resulting from its use.
+> - **User Responsibility**: Users are solely responsible for reviewing and verifying the accuracy of all imported transactions, balances, and calculations against their original official bank and credit card statements before taking any financial action.
 
 ---
 
@@ -87,7 +103,47 @@ graph TD
 
 ## 🚀 Running & Developing LocalFinance
 
-### Prerequisites
+### ⚡ Quick Start: Pre-built Standalone Binaries
+You don't need Go or Node.js installed to use LocalFinance. Download the pre-compiled binary for your system from **[GitHub Releases](https://github.com/usmslm102/local-finance/releases)**.
+
+#### 🍎 macOS (Apple Silicon M1/M2/M3/M4 & Intel)
+When running downloaded binaries on macOS, Gatekeeper may display a security dialog:
+> *"local-finance-darwin-arm64" Not Opened — Apple could not verify that it is free of malware...*
+
+This is standard macOS protection for open-source binaries distributed outside the Mac App Store without an Apple Developer ID signature.
+
+**To run the binary:**
+- **Terminal (Fastest)**: Remove the download quarantine attribute and grant execution permission:
+  ```bash
+  # For Apple Silicon (M1/M2/M3/M4):
+  xattr -d com.apple.quarantine ~/Downloads/local-finance-darwin-arm64
+  chmod +x ~/Downloads/local-finance-darwin-arm64
+  ~/Downloads/local-finance-darwin-arm64
+
+  # For Intel Mac:
+  xattr -d com.apple.quarantine ~/Downloads/local-finance-darwin-amd64
+  chmod +x ~/Downloads/local-finance-darwin-amd64
+  ~/Downloads/local-finance-darwin-amd64
+  ```
+- **Finder**:
+  1. Click **Done** on the alert dialog.
+  2. In Finder, **Right-click** (or **Control-click**) the executable file.
+  3. Click **Open** from the menu, then click **Open** on the confirmation prompt.  
+  *(Alternatively: Go to **System Settings** → **Privacy & Security**, scroll down to **Security**, and click **Open Anyway**).*
+
+#### 🪟 Windows
+1. Download `local-finance-windows-amd64.exe` from Releases.
+2. Double-click to launch. If Windows SmartScreen appears (*"Windows protected your PC"*), click **More info** → **Run anyway**.
+
+#### 🐧 Linux
+```bash
+chmod +x local-finance-linux-amd64
+./local-finance-linux-amd64
+```
+
+---
+
+### Prerequisites (For Building from Source)
 - **Go 1.22+** (configured with Go 1.26 toolchain)
 - **Node.js 20+**
 - **pnpm** (install via `npm install -g pnpm` or `brew install pnpm`)
