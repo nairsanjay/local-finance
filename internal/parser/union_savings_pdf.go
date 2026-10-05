@@ -1,0 +1,61 @@
+package parser
+
+import (
+	"io"
+	"regexp"
+	"strings"
+
+	"local-finance/internal/models"
+)
+
+type UnionSavingsPDFParser struct{}
+
+func init() { DefaultRegistry.Register(&UnionSavingsPDFParser{}) }
+
+func (p *UnionSavingsPDFParser) ID() string   { return "union_savings_pdf_v1" }
+func (p *UnionSavingsPDFParser) Name() string { return "Union Bank of India Savings Account (PDF)" }
+func (p *UnionSavingsPDFParser) SupportedTypes() []StatementType {
+	return []StatementType{TypeSavingsPDF}
+}
+
+func (p *UnionSavingsPDFParser) CanParse(filename string, sample []byte) (float64, string, models.AccountType) {
+	name := strings.ToUpper(filename)
+	content := strings.ToUpper(string(sample))
+	isPDF := strings.HasSuffix(name, ".PDF") || strings.HasPrefix(string(sample), "%PDF")
+	if !isPDF || strings.Contains(content, "CREDIT CARD") || strings.Contains(name, "_CC") {
+		return 0, "", models.AccountTypeSavings
+	}
+	confidence := 0.0
+	if strings.Contains(name, "UNION") || strings.Contains(content, "UNION BANK OF INDIA") || strings.Contains(content, "UBIN") {
+		confidence += 0.55
+	}
+	if strings.Contains(content, "DETAILS OF STATEMENT") && strings.Contains(content, "WITHDRAWAL") && strings.Contains(content, "DEPOSIT") {
+		confidence += 0.4
+	}
+	return confidence, "Union Bank of India", models.AccountTypeSavings
+}
+
+var unionSavingsProfile = bankHistoryProfile{
+	bankName:       "Union Bank of India",
+	accountType:    models.AccountTypeSavings,
+	formatName:     "PDF",
+	identityTerm:   "UBIN",
+	statementTerm:  "DETAILS OF STATEMENT",
+	recognition:    []string{"DATE", "WITHDRAWAL", "DEPOSIT", "BALANCE"},
+	dateHeaders:    []string{"TRANSACTION DATE", "DATE"},
+	description:    []string{"TRANSACTION REMARKS", "PARTICULARS", "NARRATION"},
+	debitHeaders:   []string{"WITHDRAWAL", "DEBIT"},
+	creditHeaders:  []string{"DEPOSIT", "CREDIT"},
+	balanceHeaders: []string{"BALANCE"},
+	reference:      []string{"CHQ NUM", "CHEQUE NUMBER", "CHEQUE NO", "REFERENCE"},
+	periodPattern:  regexp.MustCompile(`(?i)period\s+from\s+(\d{2}-\d{2}-\d{4})\s+to\s+(\d{2}-\d{2}-\d{4})`),
+	openingPattern: regexp.MustCompile(`(?i)opening\s+balance\s*:?\s*([0-9][0-9,]*(?:\.\d{2})?)\s*(CR|DR)?`),
+	closingPattern: regexp.MustCompile(`(?i)closing\s+balance\s*:?\s*([0-9][0-9,]*(?:\.\d{2})?)\s*(CR|DR)?`),
+	debitTotal:     regexp.MustCompile(`(?i)total\s+debits\s*:?\s*([0-9][0-9,]*(?:\.\d{2})?)`),
+	creditTotal:    regexp.MustCompile(`(?i)total\s+credits\s*:?\s*([0-9][0-9,]*(?:\.\d{2})?)`),
+	stopPattern:    regexp.MustCompile(`(?i)^\s*(?:total\s+debits|closing\s+balance|linked\s+casa|end\s+of\s+statement)\b`),
+}
+
+func (p *UnionSavingsPDFParser) Parse(r io.Reader, opts ParseOptions) ([]ParsedTransaction, StatementMeta, error) {
+	return parseBankHistoryPDF(r, opts, unionSavingsProfile)
+}
