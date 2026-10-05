@@ -63,6 +63,8 @@ LocalFinance features dedicated parsers for major Indian banks, with native extr
 
 > <sup>*</sup> **Universal CSV Support**: Any bank statement exported as CSV (including SBI, Kotak, ICICI Savings, etc.) can be parsed and ingested using LocalFinance's built-in delimiter-sniffing generic CSV engine.
 
+Synthetic ICICI and Union Bank savings PDFs in `samples/savings/` exercise parser detection and full PDF extraction in the test suite. They contain only fabricated names, descriptions, dates, and amounts. Regenerate these fixtures with `go run ./cmd/generate_bank_history_samples`.
+
 ### Credit Card Variants Breakdown
 
 | Bank | Card Variant / Series | Network | Supported Formats | Extracted Intelligence | Status |
@@ -336,161 +338,257 @@ If you prefer not to use the terminal:
 local-finance/
 ├── cmd/
 │   └── server/
-│       └── main.go                 # Application entry point: CLI flags, DB bootstrap, auto-browser
-├── embed.go                        # go:embed directives bundling frontend/dist into Go binary
-├── frontend/                       # React 19 + TypeScript + Vite frontend
-│   ├── dist/                       # Production frontend build output (embedded into Go binary)
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── dashboard/          # KPI Cards, Spend Breakdown Donut, Cash Flow Bar Chart
-│   │   │   ├── import/             # Statement upload dropzone & upsert audit summary
-│   │   │   ├── layout/             # Top Navbar with active navigation links
-│   │   │   ├── rules/              # Categories & auto-categorization rule inspector
-│   │   │   ├── settings/           # Local Auth & database lock settings
-│   │   │   └── transactions/       # TanStack Table ledger with filtering & pagination
-│   │   ├── lib/
-│   │   │   ├── api.ts              # Typed API client for Go backend endpoints
-│   │   │   └── utils.ts            # Formatting helpers (INR currency, dates, class merging)
-│   │   ├── types/                  # TypeScript interfaces (Transaction, Account, Analytics)
-│   │   ├── index.css               # Tailwind CSS v4 design tokens & theme
-│   │   ├── main.tsx                # QueryClientProvider & root mount
-│   │   └── router.tsx              # TanStack Router configuration
-│   ├── package.json                # Frontend dependencies (ALWAYS managed with pnpm)
-│   └── vite.config.ts              # Vite configuration (port 5173 with proxy to backend :8080)
-├── go.mod                          # Go module dependencies
-├── go.sum                          # Go checksums
-├── internal/
-│   ├── api/
-│   │   ├── handlers.go             # Gin HTTP route handlers
-│   │   └── routes.go               # Router setup, CORS, static SPA fallback handler
-│   ├── db/
-│   │   ├── db.go                   # SQLite connection, Goose migration runner, queries, seeders
-│   │   ├── db_test.go              # Database & migration unit tests
-│   │   └── migrations/             # Embedded Goose SQL migration files
-│   │       ├── 00001_initial_schema.sql
-│   │       ├── ...
-│   │       └── 00010_add_account_number.sql
-│   ├── models/
-│   │   └── models.go               # Shared domain structs & enums
-│   ├── parser/
-│   │   ├── cleaner.go              # Indian UPI, POS terminal, IMPS/NEFT narration regex engine
-│   │   ├── extractor/              # Generic format extractors (Excel, PDF, CSV, normalizers)
-│   │   │   ├── csv.go              # Auto-delimiter & BOM stripping CSV extractor
-│   │   │   ├── excel.go            # OpenXML (.xlsx) & legacy BIFF8 (.xls) / HTML extractor
-│   │   │   ├── helper.go           # Indian currency & date normalizers, ColumnSpec finder
-│   │   │   └── pdf.go              # Decryption & positional text token extractor
-│   │   ├── hdfc_cc_csv.go          # HDFC Credit Card CSV parser plugin
-│   │   ├── hdfc_cc_pdf.go          # HDFC Credit Card PDF parser plugin
-│   │   ├── hdfc_savings_csv.go     # HDFC Savings/Current Account CSV parser plugin
-│   │   ├── hdfc_savings_pdf.go     # HDFC Savings/Current Account PDF parser plugin (bulk & standard)
-│   │   ├── hdfc_savings_xls.go     # HDFC Savings/Current Account Excel parser plugin
-│   │   ├── icici_cc_pdf.go         # ICICI Bank Credit Card PDF parser plugin
-│   │   ├── axis_cc_pdf.go          # Axis Bank Credit Card PDF parser plugin
-│   │   └── parser.go               # Generic StatementParser interface & auto-detection Registry
-│   └── service/
-│       └── transaction_service.go  # Ingestion pipeline, SHA-256 fingerprinting & smart upserts
-├── Makefile                        # Build and development automation targets
-├── ROADMAP.md                      # Product specifications, completed ledger & future roadmap
-└── README.md                       # Comprehensive user and developer manual
-```
-
----
-
-## 🧩 Adding a New Bank Parser (Extensibility)
-
-Adding support for a new bank or format (e.g. SBI, Kotak, Axis, Amex) is completely modular:
-
-1. Create a new file in `internal/parser/<bank>_<account_type>_<format>.go` (e.g. `internal/parser/sbi_savings_csv.go`).
-2. Implement the `StatementParser` interface:
-
-```go
-package parser
-
-import (
-	"io"
-	"strings"
-	"local-finance/internal/models"
-)
-
-type SBISavingsCSVParser struct{}
-
-func init() {
-	// Automatically registers parser with the global registry
-	DefaultRegistry.Register(&SBISavingsCSVParser{})
-}
-
-func (p *SBISavingsCSVParser) ID() string {
-	return "sbi_savings_csv_v1"
-}
-
-func (p *SBISavingsCSVParser) Name() string {
-	return "State Bank of India Savings CSV"
-}
-
-func (p *SBISavingsCSVParser) SupportedTypes() []StatementType {
-	return []StatementType{TypeSavingsCSV}
-}
-
-func (p *SBISavingsCSVParser) CanParse(filename string, sample []byte) (float64, string, models.AccountType) {
-	content := strings.ToUpper(string(sample))
-	confidence := 0.0
-	if strings.Contains(content, "STATE BANK OF INDIA") || strings.Contains(content, "SBI") {
-		confidence += 0.5
+│       └── main.go  …7325 tokens truncated…eta, fmt.Errorf("%s statement contains a dated transaction without narration", profile.bankName)
+		}
+		cleaned := CleanNarration(narration)
+		ref := bankHistoryReference(row, columns)
+		if ref == "" {
+			ref = cleaned.ReferenceNumber
+		}
+		parsed = append(parsed, bankHistoryRow{tx: ParsedTransaction{
+			Date: date, RawNarration: narration, CleanedPayee: cleaned.CleanedPayee,
+			PaymentMode: cleaned.PaymentMode, ReferenceNumber: ref, TxType: direction,
+			Amount: amount, IsTransfer: cleaned.IsTransfer,
+		}, balance: balance})
 	}
-	if strings.Contains(content, "TXN DATE") && strings.Contains(content, "DESCRIPTION") {
-		confidence += 0.4
+	if len(parsed) == 0 {
+		return nil, meta, fmt.Errorf("%s transaction table contains no complete rows", profile.bankName)
 	}
-	return confidence, "State Bank of India", models.AccountTypeSavings
+
+	// Normalize source ordering before checking every adjacent running balance.
+	sort.SliceStable(parsed, func(i, j int) bool { return parsed[i].tx.Date < parsed[j].tx.Date })
+	debits, credits := 0.0, 0.0
+	for index, row := range parsed {
+		if row.tx.TxType == models.TxTypeDebit {
+			debits += row.tx.Amount
+		} else {
+			credits += row.tx.Amount
+		}
+		previous := row.balance
+		if row.tx.TxType == models.TxTypeCredit {
+			previous -= row.tx.Amount
+		} else {
+			previous += row.tx.Amount
+		}
+		if index == 0 {
+			if !openingFound {
+				meta.OpeningBalance = previous
+			} else if !historyMoneyEqual(meta.OpeningBalance, previous) {
+				return nil, meta, fmt.Errorf("%s opening balance does not reconcile with its first running balance", profile.bankName)
+			}
+			continue
+		}
+		if !historyMoneyEqual(parsed[index-1].balance, previous) {
+			return nil, meta, fmt.Errorf("%s running balances do not reconcile between dated transactions", profile.bankName)
+		}
+	}
+	if !closingFound {
+		meta.ClosingBalance = parsed[len(parsed)-1].balance
+	} else if !historyMoneyEqual(meta.ClosingBalance, parsed[len(parsed)-1].balance) {
+		return nil, meta, fmt.Errorf("%s closing balance does not match the last running balance", profile.bankName)
+	}
+	if debitTotalFound && !historyMoneyEqual(meta.TotalDebits, debits) {
+		return nil, meta, fmt.Errorf("%s withdrawals do not match the printed debit total", profile.bankName)
+	}
+	if creditTotalFound && !historyMoneyEqual(meta.TotalCredits, credits) {
+		return nil, meta, fmt.Errorf("%s deposits do not match the printed credit total", profile.bankName)
+	}
+	if meta.TotalDebits == 0 {
+		meta.TotalDebits = debits
+	}
+	if meta.TotalCredits == 0 {
+		meta.TotalCredits = credits
+	}
+	if meta.OpeningBalance+credits-debits-meta.ClosingBalance > 0.01 || meta.ClosingBalance-(meta.OpeningBalance+credits-debits) > 0.01 {
+		return nil, meta, fmt.Errorf("%s opening balance, transactions, and closing balance do not reconcile", profile.bankName)
+	}
+	if meta.StartDate == "" || meta.EndDate == "" {
+		meta.StartDate, meta.EndDate = parsed[0].tx.Date, parsed[len(parsed)-1].tx.Date
+	}
+	transactions := make([]ParsedTransaction, len(parsed))
+	for index := range parsed {
+		balance := parsed[index].balance
+		transactions[index] = parsed[index].tx
+		transactions[index].RunningBalance = &balance
+	}
+	return transactions, meta, nil
 }
 
-func (p *SBISavingsCSVParser) Parse(r io.Reader, opts ParseOptions) ([]ParsedTransaction, StatementMeta, error) {
-	// 1. Read rows using extractor.ExtractCSV
-	// 2. Normalize dates using extractor.NormalizeIndianDate
-	// 3. Clean narrations using CleanNarration(raw)
-	// 4. Return []ParsedTransaction and StatementMeta
+func discoverBankHistoryColumns(row extractor.PositionalRow, profile bankHistoryProfile) (bankHistoryColumns, bool) {
+	text := bankHistoryRowText(row)
+	upper := strings.ToUpper(text)
+	if !containsAllBankTerms(upper, profile.recognition) {
+		return bankHistoryColumns{}, false
+	}
+	columns := bankHistoryColumns{date: -1, description: -1, debit: -1, credit: -1, balance: -1, reference: -1}
+	for _, element := range row.Elements {
+		label := strings.ToUpper(strings.Join(strings.Fields(element.S), " "))
+		switch {
+		case columns.date < 0 && matchesBankTerm(label, profile.dateHeaders):
+			columns.date = element.X
+		case columns.description < 0 && matchesBankTerm(label, profile.description):
+			columns.description = element.X
+		case columns.debit < 0 && matchesBankTerm(label, profile.debitHeaders):
+			columns.debit = element.X
+		case columns.credit < 0 && matchesBankTerm(label, profile.creditHeaders):
+			columns.credit = element.X
+		case columns.balance < 0 && matchesBankTerm(label, profile.balanceHeaders):
+			columns.balance = element.X
+		case !columns.hasReference && matchesBankTerm(label, profile.reference):
+			columns.reference, columns.hasReference = element.X, true
+		}
+	}
+	if columns.date < 0 || columns.description < 0 || columns.debit < 0 || columns.credit < 0 || columns.balance < 0 {
+		return bankHistoryColumns{}, false
+	}
+	if !(columns.date < columns.description && columns.description < columns.debit && columns.debit < columns.credit && columns.credit < columns.balance) {
+		return bankHistoryColumns{}, false
+	}
+	return columns, true
 }
-```
 
----
+func containsAllBankTerms(text string, terms []string) bool {
+	for _, term := range terms {
+		if !strings.Contains(text, strings.ToUpper(term)) {
+			return false
+		}
+	}
+	return true
+}
 
-## Monthly Review
+func matchesBankTerm(text string, terms []string) bool {
+	for _, term := range terms {
+		if strings.Contains(text, strings.ToUpper(term)) {
+			return true
+		}
+	}
+	return false
+}
 
-Overview now includes a compact review of the latest month with imported data. Choose **Understand what changed** to open the detailed review in Cash Flow, or use **Review month** there to inspect another month.
+func bankHistoryRowText(row extractor.PositionalRow) string {
+	parts := make([]string, 0, len(row.Elements))
+	for _, element := range row.Elements {
+		parts = append(parts, strings.TrimSpace(element.S))
+	}
+	return strings.Join(parts, " ")
+}
 
-- Expand statement coverage to see how many days each tracked account's reported statement ranges cover in both periods. Overlaps count once; gaps remain visible. This is a date-coverage check, not a balance audit.
-- Inspect the largest category changes and the merchants contributing to them. **View transactions** shows the exact recorded debits for either period, with pagination.
-- Use **Plan next month** to open the existing budget editor for the following month and category. Nothing is saved automatically.
+func bankHistoryDocumentText(rows []extractor.PositionalRow) string {
+	var lines []string
+	for _, row := range rows {
+		lines = append(lines, bankHistoryRowText(row))
+	}
+	return strings.Join(lines, "\n")
+}
 
-Historical months compare full calendar months. The current month compares elapsed days, capped at the previous month's last day when it is shorter. Transfers and excluded transactions do not count as spending; credits and refunds are not deducted. Missing statement coverage can distort comparisons, so the review flags it explicitly.
+func bankHistoryDateCell(row extractor.PositionalRow, dateX, descriptionX float64) (int, string) {
+	for index, element := range row.Elements {
+		if element.X < dateX-10 || element.X >= descriptionX {
+			continue
+		}
+		value := strings.TrimSpace(element.S)
+		if bankHistoryDatePrefix.MatchString(value) {
+			return index, bankHistoryDatePrefix.FindString(value)
+		}
+	}
+	return -1, ""
+}
 
-The review is read-only, runs offline, and uses the app's existing authentication and discreet mode.
+func strictIndianDate(raw string) string {
+	normalized := extractor.NormalizeIndianDate(raw)
+	if _, err := time.Parse("2006-01-02", normalized); err != nil {
+		return ""
+	}
+	return normalized
+}
 
-## 🔌 REST API Reference
+func amountInBankColumn(row extractor.PositionalRow, start, end float64) (float64, bool, error) {
+	cell := bankHistoryCellInColumn(row, start, end)
+	if cell == "" || cell == "-" || cell == "--" {
+		return 0, false, nil
+	}
+	match := bankHistoryAmount.FindStringSubmatch(cell)
+	if len(match) != 3 {
+		return 0, false, fmt.Errorf("invalid amount cell")
+	}
+	amount, err := extractor.ParseIndianAmount(match[1])
+	if err != nil || amount < 0 {
+		return 0, false, fmt.Errorf("invalid amount value")
+	}
+	return amount, amount > 0, nil
+}
 
-| Endpoint | Method | Description |
-| :--- | :--- | :--- |
-| `/api/health` | `GET` | Server health check and version info |
-| `/api/accounts` | `GET` | List all discovered bank accounts and credit cards with current balances |
-| `/api/transactions` | `GET` | List transactions with filters (`account_id`, `category_id`, `tx_type`, `search`, `start_date`, `end_date`, `page`, `page_size`) |
-| `/api/statements/upload` | `POST` | Ingest statement file (multipart `file`, optional `password`, `account_id`, `parser_id`) |
-| `/api/statements/preview` | `POST` | Dry-run statement parse without saving to DB (shows detected metadata and transactions) |
-| `/api/statements` | `GET` | List history of uploaded statements with checksums and date ranges |
-| `/api/categories` | `GET` | List spending categories with icons and color tokens |
-| `/api/rules` | `GET` | List active auto-categorization keyword & regex rules |
-| `/api/analytics/overview`| `GET` | Get total income, total expense, net savings, category breakdown, and monthly cash flow |
-| `/api/analytics/monthly-review` | `GET` | Spending comparison and statement coverage; optional `month=YYYY-MM`, defaulting to the latest month with imported data |
-| `/api/analytics/monthly-review/transactions` | `GET` | Supporting debits for `month`, `category` (empty means uncategorized), `period=current\|previous`, and `page`; 50 rows per page |
-| `/api/parsers` | `GET` | List all registered bank parser plugins |
+func bankHistoryCellInColumn(row extractor.PositionalRow, start, end float64) string {
+	var values []string
+	for _, element := range row.Elements {
+		if element.X < start || (end > start && element.X >= end) {
+			continue
+		}
+		value := strings.TrimSpace(element.S)
+		if value != "" {
+			values = append(values, value)
+		}
+	}
+	return strings.Join(values, " ")
+}
 
----
+func bankHistoryNarration(row extractor.PositionalRow, columns bankHistoryColumns) string {
+	var parts []string
+	for _, element := range row.Elements {
+		if element.X < columns.description || element.X >= columns.debit || (columns.hasReference && element.X >= columns.reference && element.X < columns.debit) {
+			continue
+		}
+		value := strings.TrimSpace(element.S)
+		if bankHistoryDatePrefix.MatchString(value) {
+			continue
+		}
+		if _, err := extractor.ParseIndianAmount(value); err == nil && bankHistoryMoneyToken.MatchString(value) {
+			continue
+		}
+		parts = append(parts, value)
+	}
+	return strings.TrimSpace(strings.Join(parts, " "))
+}
 
-## 🛡️ Privacy & Local Security
+func bankHistoryReference(row extractor.PositionalRow, columns bankHistoryColumns) string {
+	if !columns.hasReference {
+		return ""
+	}
+	for _, element := range row.Elements {
+		if element.X < columns.reference || element.X >= columns.debit {
+			continue
+		}
+		value := strings.TrimSpace(element.S)
+		if value != "" && !bankHistoryDatePrefix.MatchString(value) {
+			return value
+		}
+	}
+	return ""
+}
 
-- **100% Offline**: LocalFinance does not make external network requests, send telemetry, or connect to third-party servers.
-- **Local SQLite Storage**: Your data lives entirely in `local_finance.db` (or `~/.localfinance/local_finance.db`). Backups can be made simply by copying this single file.
-- **Local App Lock**: An optional PIN/Password can be enabled in settings to restrict local access to the dashboard.
+func parseLabeledHistoryAmount(pattern *regexp.Regexp, line string) (float64, bool) {
+	if pattern == nil {
+		return 0, false
+	}
+	match := pattern.FindStringSubmatch(line)
+	if len(match) < 2 {
+		return 0, false
+	}
+	amount, err := extractor.ParseIndianAmount(match[1])
+	if err != nil || amount < 0 {
+		return 0, false
+	}
+	if len(match) > 2 && strings.EqualFold(strings.TrimSpace(match[2]), "DR") {
+		return -absFloat(amount), true
+	}
+	return absFloat(amount), true
+}
 
----
+func historyMoneyEqual(a, b float64) bool { return absFloat(a-b) <= 0.01 }
 
-## 📄 License
-MIT License. Free and open source for local personal finance intelligence.
+func absFloat(value float64) float64 {
+	if value < 0 {
+		return -value
+	}
+	return value
+}
