@@ -41,7 +41,349 @@
   - Idempotent SQLite upserts (`ON CONFLICT`) safely update balances while **strictly preserving** your custom category overrides, notes, and tags.
 - **Optional Local Security / Password Protection**:
   - Protect local database access with an optional PIN/password stored with PBKDF2/argon2 hashing, complete with automatic lock timeout.
-- **Modern Interactive Dashboa…4349 tokens truncated…avings_csv.go     # HDFC Savings/Current Account CSV parser plugin
+- **Modern Interactive Dashboard**:
+  - Built with **React 19**, **TypeScript**, **Tailwind CSS v4**, **TanStack Router**, **TanStack Table**, and **Recharts**.
+
+---
+
+## 🏦 Supported Banks & Statements Matrix
+
+LocalFinance features dedicated parsers for major Indian banks, with native extraction of statements in PDF (including password-encrypted files decrypted losslessly in memory), CSV, and Excel formats.
+
+### Compatibility Matrix
+
+| Bank | Savings Account | Current Account | Core / Premium CC | Swiggy HDFC | Amazon Pay ICICI | Flipkart Axis | RuPay UPI CC | Supported Formats |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
+| **HDFC Bank** | ✅ Supported | ✅ Supported | ✅ Supported <br><sub>*(Regalia, Millennia, Infinia)*</sub> | ✅ Supported | ➖ *(N/A)* | ➖ *(N/A)* | ✅ Supported <br><sub>*(Tata Neu, RuPay)*</sub> | PDF, CSV, Excel (`.xls`, `.xlsx`) |
+| **ICICI Bank** | ✅ Supported | ⏳ Planned | ✅ Supported <br><sub>*(Coral, Rubyx, Sapphiro)*</sub> | ➖ *(N/A)* | ✅ Supported | ➖ *(N/A)* | ⏳ Planned | PDF (Savings, Credit Card) |
+| **Union Bank of India** | ✅ Supported | ⏳ Planned | ⏳ Planned | ➖ *(N/A)* | ➖ *(N/A)* | ➖ *(N/A)* | ⏳ Planned | PDF (Savings) |
+| **Axis Bank** | ⏳ Planned <sup>*</sup> | ⏳ Planned | ✅ Supported <br><sub>*(ACE, Magnus, Atlas, Neo)*</sub> | ➖ *(N/A)* | ➖ *(N/A)* | ✅ Supported | ⏳ Planned | PDF (Credit Card) |
+| **State Bank of India (SBI)** | ⏳ Planned <sup>*</sup> | ⏳ Planned | ⏳ Planned | ➖ *(N/A)* | ➖ *(N/A)* | ➖ *(N/A)* | ⏳ Planned | Generic CSV |
+| **Kotak Mahindra Bank** | ⏳ Planned <sup>*</sup> | ⏳ Planned | ⏳ Planned | ➖ *(N/A)* | ➖ *(N/A)* | ➖ *(N/A)* | ⏳ Planned | Generic CSV |
+
+> <sup>*</sup> **Universal CSV Support**: Any bank statement exported as CSV (including SBI, Kotak, ICICI Savings, etc.) can be parsed and ingested using LocalFinance's built-in delimiter-sniffing generic CSV engine.
+
+Synthetic ICICI and Union Bank savings PDFs in `samples/savings/` exercise parser detection and full PDF extraction in the test suite. They contain only fabricated names, descriptions, dates, and amounts.
+
+### Credit Card Variants Breakdown
+
+| Bank | Card Variant / Series | Network | Supported Formats | Extracted Intelligence | Status |
+| :--- | :--- | :---: | :--- | :--- | :---: |
+| **HDFC Bank** | **Regalia / Regalia Gold** | VISA | PDF, CSV | Billing period, due date, reward points, credit limit | ✅ Supported |
+| **HDFC Bank** | **Millennia** | VISA / MC | PDF, CSV | Billing period, due date, cashback, reward points | ✅ Supported |
+| **HDFC Bank** | **Infinia** | VISA | PDF, CSV | Billing period, due date, reward points, credit limit | ✅ Supported |
+| **HDFC Bank** | **Swiggy HDFC** | Mastercard | PDF, CSV | Cashback earned & credited, billing period, due date | ✅ Supported |
+| **HDFC Bank** | **Tata Neu / RuPay UPI** | RuPay | PDF, CSV | UPI merchant transactions, NeuCoins/rewards, due date | ✅ Supported |
+| **ICICI Bank** | **Amazon Pay ICICI** | VISA | PDF | 5%/2%/1% cashback calculation, due dates, reward tracking | ✅ Supported |
+| **ICICI Bank** | **Coral / Rubyx / Sapphiro** | VISA / MC | PDF | Purchases/charges, reward points, limits, due dates | ✅ Supported |
+| **Axis Bank** | **Flipkart Axis** | Mastercard / VISA | PDF | Cashback earned & credited, merchant categories, due dates | ✅ Supported |
+| **Axis Bank** | **ACE / Magnus / Atlas / Neo** | VISA / MC | PDF | Itemized spends, reward points, credit limits, due dates | ✅ Supported |
+
+---
+
+## 🏗️ Architecture
+
+```mermaid
+graph TD
+    A[Bank & Credit Card Statements<br/>PDF, CSV, Excel, Bulk Historic] --> B[Extensible Parser Engine]
+    
+    subgraph "Extensible Parser Engine"
+        B --> B1[Format Sniffer & Confidence Scorer]
+        B1 --> B2[In-Memory Decryption & Positional Extractor]
+        B2 --> B3[Bank Adapters<br/>HDFC, ICICI, Axis, SBI...]
+        B3 --> B4[Indian Narration & UPI Regex Engine]
+        B4 --> B5[Deterministic SHA-256 Fingerprinter]
+    end
+
+    B5 --> C[(Embedded Pure-Go SQLite DB<br/>modernc.org/sqlite + Goose Migrations)]
+    
+    subgraph "Go Backend (Gin Framework)"
+        C --> D[Transaction & Ingestion Service]
+        C --> E[Analytics, Budget & Cash Flow Engine]
+        C --> S[App Security & Auth Store]
+        D --> F[Local REST API Server<br/>127.0.0.1:8080]
+        E --> F
+        S --> F
+    end
+
+    subgraph "Embedded Frontend (React 19 + Vite)"
+        F --> G[Embedded Static File Server<br/>go:embed all:frontend/dist]
+        G --> H[TanStack Router SPA<br/>Overview, Ledger, Importer, Rules, Security]
+    end
+
+    H --> I[Default Browser Auto-Open<br/>or http://127.0.0.1:8080]
+```
+
+---
+
+## 🛠️ Technology Stack
+
+| Layer | Component | Description |
+| :--- | :--- | :--- |
+| **Backend Core** | **Go 1.22+** (Go 1.26 toolchain) | High-performance, low-memory footprint, single-binary compilation with `CGO_ENABLED=0`. |
+| **API Framework** | **Gin (`gin-gonic/gin`)** | High-speed HTTP router, multipart file upload handling, CORS, and embedded static asset serving. |
+| **Database Engine** | **SQLite (`modernc.org/sqlite`)** | Pure Go SQLite engine (zero CGO required), WAL mode enabled with busy timeout pragmas. |
+| **Schema Migrations** | **Goose (`pressly/goose/v3`)** | Embedded SQL migrations executed automatically on startup via `embed.FS`. |
+| **Asset Embedding** | **Go `embed`** | Packages the compiled React production bundle directly into the Go binary. |
+| **Frontend Framework**| **React 19 + TypeScript + Vite** | High-speed modern UI with type-safety and hot module replacement. |
+| **Package Manager** | **`pnpm`** | Strict dependency resolution (use `pnpm` exclusively for all frontend tasks). |
+| **UI Components** | **shadcn/ui + Radix UI** | Accessible, headless UI components styled with Tailwind CSS. |
+| **Routing** | **TanStack Router** | Client-side routing for `/`, `/transactions`, `/import`, `/categories`, `/settings`. |
+| **Table & Ledger** | **TanStack Table v8** | Virtualized transaction table with multi-column sorting, filtering, and pagination. |
+| **State & Fetching** | **TanStack Query v5** | Server-state caching and automatic cache invalidation on imports. |
+| **Styling** | **Tailwind CSS v4** | Modern design tokens and dark financial aesthetic. |
+| **Visualizations** | **Recharts** | Interactive donut spending breakdown and cash flow bar charts. |
+
+---
+
+## 🚀 Running & Developing LocalFinance
+
+### ⚡ Quick Start: Pre-built Standalone Binaries
+You don't need Go or Node.js installed to use LocalFinance. Download the pre-compiled binary for your system from **[GitHub Releases](https://github.com/usmslm102/local-finance/releases)**.
+
+#### 🍎 macOS (Apple Silicon M1/M2/M3/M4 & Intel)
+When running downloaded binaries on macOS, Gatekeeper may display a security dialog:
+> *"local-finance-darwin-arm64" Not Opened — Apple could not verify that it is free of malware...*
+
+This is standard macOS protection for open-source binaries distributed outside the Mac App Store without an Apple Developer ID signature.
+
+**To run the binary:**
+- **Terminal (Fastest)**: Remove the download quarantine attribute and grant execution permission:
+  ```bash
+  # For Apple Silicon (M1/M2/M3/M4):
+  xattr -d com.apple.quarantine ~/Downloads/local-finance-darwin-arm64
+  chmod +x ~/Downloads/local-finance-darwin-arm64
+  ~/Downloads/local-finance-darwin-arm64
+
+  # For Intel Mac:
+  xattr -d com.apple.quarantine ~/Downloads/local-finance-darwin-amd64
+  chmod +x ~/Downloads/local-finance-darwin-amd64
+  ~/Downloads/local-finance-darwin-amd64
+  ```
+- **Finder**:
+  1. Click **Done** on the alert dialog.
+  2. In Finder, **Right-click** (or **Control-click**) the executable file.
+  3. Click **Open** from the menu, then click **Open** on the confirmation prompt.  
+  *(Alternatively: Go to **System Settings** → **Privacy & Security**, scroll down to **Security**, and click **Open Anyway**).*
+
+#### 🪟 Windows
+1. Download `local-finance-windows-amd64.exe` from Releases.
+2. Double-click to launch. If Windows SmartScreen appears (*"Windows protected your PC"*), click **More info** → **Run anyway**.
+
+#### 🐧 Linux
+```bash
+chmod +x local-finance-linux-amd64
+./local-finance-linux-amd64
+```
+
+---
+
+### Prerequisites (For Building from Source)
+- **Go 1.22+** (configured with Go 1.26 toolchain)
+- **Node.js 20+**
+- **pnpm** (install via `npm install -g pnpm` or `brew install pnpm`)
+
+---
+
+### Development Workflows
+
+#### 1. Quick Unified Run (`make dev` or `make serve`)
+Compiles the React frontend and boots up the Go server with auto-browser opening:
+```bash
+make dev
+```
+
+#### 2. Live Development Mode (Dual Process with Hot Reload)
+When actively building React UI components or making backend changes:
+
+* **Terminal 1: Go Backend Server**
+  ```bash
+  make dev-backend
+  # Or manually:
+  go run ./cmd/server/main.go -port 8080 -db ./local_finance.db -open=false
+  ```
+  *(Optional: Use [`air`](https://github.com/air-verse/air) for live Go auto-recompilation: `air -c .air.toml`)*
+
+* **Terminal 2: Frontend Vite Dev Server**
+  ```bash
+  make dev-frontend
+  # Or manually:
+  cd frontend && pnpm dev
+  ```
+  Open **`http://localhost:5173`** in your browser. All UI edits reflect instantly via Hot Module Replacement (HMR), and API requests (`/api/*`) are automatically proxied to the Go backend on port `8080`.
+
+#### 3. Production Build (Single Standalone Binary)
+Builds the production React bundle, embeds it into Go, and outputs the standalone executable:
+```bash
+make build
+# Or manually:
+cd frontend && pnpm build && cd .. && go build -o local-finance ./cmd/server/main.go
+```
+
+#### 4. Run the Production Binary
+```bash
+./local-finance -port 8080 -open
+```
+
+#### Available CLI Flags:
+| Flag | Default | Description |
+| :--- | :--- | :--- |
+| `-port` | `8080` | Port for the local HTTP server. |
+| `-db` | `~/.localfinance/local_finance.db` | Path to the SQLite database file. |
+| `-open` | `true` | Automatically opens the application in your default web browser on startup (`-open=false` to disable). |
+
+#### 5. Clean Build Artifacts
+```bash
+make clean
+# Deletes frontend/dist, compiled binary, and test databases
+```
+
+#### 6. Run Automated Tests
+```bash
+make test
+# Or:
+go test -v ./...
+```
+
+---
+
+### Cross-Compiling for Other Operating Systems
+
+Because LocalFinance uses pure Go SQLite (`modernc.org/sqlite`), cross-compilation requires **zero CGO** (`CGO_ENABLED=0`):
+
+```bash
+# 1. Build frontend assets
+cd frontend && pnpm build && cd ..
+
+# 2. Compile for macOS (Apple Silicon M1/M2/M3/M4)
+GOOS=darwin GOARCH=arm64 go build -o local-finance-darwin-arm64 ./cmd/server/main.go
+
+# 3. Compile for macOS (Intel x86_64)
+GOOS=darwin GOARCH=amd64 go build -o local-finance-darwin-amd64 ./cmd/server/main.go
+
+# 4. Compile for Windows 64-bit (.exe)
+GOOS=windows GOARCH=amd64 go build -o local-finance-windows-amd64.exe ./cmd/server/main.go
+
+# 5. Compile for Linux 64-bit
+GOOS=linux GOARCH=amd64 go build -o local-finance-linux-amd64 ./cmd/server/main.go
+```
+
+---
+
+## 🔒 Password-Protected PDF Statements & Optional Decryption
+
+### Native Decryption (Recommended)
+You do **not** need to decrypt or remove passwords from your statements before uploading!
+- LocalFinance natively decrypts protected PDF statements in memory using the password input in the upload modal.
+- It parses the full multi-page document in its native layout without touching your filesystem or saving decrypted files to disk.
+
+---
+
+### ⚠️ Avoid macOS Preview "Print to PDF"
+When removing passwords from bank statements, **do not** use **File &rarr; Print &rarr; Save as PDF** in macOS Preview:
+1. **Canvas Rescaling**: Preview's virtual printer often downsizes wide/landscape bank statements (e.g. from 730 pt landscape down to 245 pt portrait), which can break column alignments in standard parsers.
+2. **Missing Pages**: The print dialog frequently defaults to printing **only Page 1**, accidentally truncating multi-page statements (e.g. losing 13 out of 14 pages).
+
+---
+
+### 💡 How to Safely Remove Passwords via `qpdf` (Lossless)
+
+If you wish to remove passwords from bank statements for local archival or inspection, the safest and cleanest utility is **`qpdf`**.
+
+`qpdf` performs a **pure cryptographic decryption** on the PDF binary stream without re-rendering, rescaling, or rasterizing vector coordinates:
+
+#### 1. Install `qpdf`
+* **macOS** (Homebrew):
+  ```bash
+  brew install qpdf
+  ```
+* **Ubuntu / Debian**:
+  ```bash
+  sudo apt install qpdf
+  ```
+* **Windows** (Chocolatey or Scoop):
+  ```bash
+  choco install qpdf
+  # Or: scoop install qpdf
+  ```
+
+#### 2. Decrypt Statement
+```bash
+qpdf --decrypt --password="YOUR_PASSWORD" "protected_statement.pdf" "unlocked_statement.pdf"
+```
+
+#### 3. Batch Decrypt All Statements in a Folder (macOS/Linux)
+```bash
+for f in *.pdf; do
+    qpdf --decrypt --password="YOUR_PASSWORD" "$f" "unlocked_${f}"
+done
+```
+
+> **Why `qpdf`?** It preserves 100% of the original PDF layout, font streams, page counts, and coordinate dimensions with zero data loss.
+
+---
+
+#### Alternative GUI Method: macOS Preview "Export" (Not Print)
+If you prefer not to use the terminal:
+1. Open the protected PDF in **Preview** and enter your password.
+2. Click **File &rarr; Export...** (do **NOT** use *Export as PDF* or *Print*).
+3. In the export dialog, ensure the **Encrypt** checkbox is **unchecked**.
+4. Save the file. This preserves all pages and canvas dimensions.
+
+---
+
+## 📁 Repository Structure
+
+```
+local-finance/
+├── cmd/
+│   └── server/
+│       └── main.go                 # Application entry point: CLI flags, DB bootstrap, auto-browser
+├── embed.go                        # go:embed directives bundling frontend/dist into Go binary
+├── frontend/                       # React 19 + TypeScript + Vite frontend
+│   ├── dist/                       # Production frontend build output (embedded into Go binary)
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── dashboard/          # KPI Cards, Spend Breakdown Donut, Cash Flow Bar Chart
+│   │   │   ├── import/             # Statement upload dropzone & upsert audit summary
+│   │   │   ├── layout/             # Top Navbar with active navigation links
+│   │   │   ├── rules/              # Categories & auto-categorization rule inspector
+│   │   │   ├── settings/           # Local Auth & database lock settings
+│   │   │   └── transactions/       # TanStack Table ledger with filtering & pagination
+│   │   ├── lib/
+│   │   │   ├── api.ts              # Typed API client for Go backend endpoints
+│   │   │   └── utils.ts            # Formatting helpers (INR currency, dates, class merging)
+│   │   ├── types/                  # TypeScript interfaces (Transaction, Account, Analytics)
+│   │   ├── index.css               # Tailwind CSS v4 design tokens & theme
+│   │   ├── main.tsx                # QueryClientProvider & root mount
+│   │   └── router.tsx              # TanStack Router configuration
+│   ├── package.json                # Frontend dependencies (ALWAYS managed with pnpm)
+│   └── vite.config.ts              # Vite configuration (port 5173 with proxy to backend :8080)
+├── go.mod                          # Go module dependencies
+├── go.sum                          # Go checksums
+├── internal/
+│   ├── api/
+│   │   ├── handlers.go             # Gin HTTP route handlers
+│   │   └── routes.go               # Router setup, CORS, static SPA fallback handler
+│   ├── db/
+│   │   ├── db.go                   # SQLite connection, Goose migration runner, queries, seeders
+│   │   ├── db_test.go              # Database & migration unit tests
+│   │   └── migrations/             # Embedded Goose SQL migration files
+│   │       ├── 00001_initial_schema.sql
+│   │       ├── ...
+│   │       └── 00010_add_account_number.sql
+│   ├── models/
+│   │   └── models.go               # Shared domain structs & enums
+│   ├── parser/
+│   │   ├── cleaner.go              # Indian UPI, POS terminal, IMPS/NEFT narration regex engine
+│   │   ├── extractor/              # Generic format extractors (Excel, PDF, CSV, normalizers)
+│   │   │   ├── csv.go              # Auto-delimiter & BOM stripping CSV extractor
+│   │   │   ├── excel.go            # OpenXML (.xlsx) & legacy BIFF8 (.xls) / HTML extractor
+│   │   │   ├── helper.go           # Indian currency & date normalizers, ColumnSpec finder
+│   │   │   └── pdf.go              # Decryption & positional text token extractor
+│   │   ├── hdfc_cc_csv.go          # HDFC Credit Card CSV parser plugin
+│   │   ├── hdfc_cc_pdf.go          # HDFC Credit Card PDF parser plugin
+│   │   ├── hdfc_savings_csv.go     # HDFC Savings/Current Account CSV parser plugin
 │   │   ├── hdfc_savings_pdf.go     # HDFC Savings/Current Account PDF parser plugin (bulk & standard)
 │   │   ├── hdfc_savings_xls.go     # HDFC Savings/Current Account Excel parser plugin
 │   │   ├── icici_cc_pdf.go         # ICICI Bank Credit Card PDF parser plugin
