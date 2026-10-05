@@ -20,9 +20,10 @@ func (p *UnionSavingsPDFParser) SupportedTypes() []StatementType {
 
 func (p *UnionSavingsPDFParser) CanParse(filename string, sample []byte) (float64, string, models.AccountType) {
 	name := strings.ToUpper(filename)
-	content := strings.ToUpper(string(sample))
+	content := strings.ToUpper(strings.Join(strings.Fields(string(sample)), " "))
 	isPDF := strings.HasSuffix(name, ".PDF") || strings.HasPrefix(string(sample), "%PDF")
-	if !isPDF || strings.Contains(content, "CREDIT CARD") || strings.Contains(name, "_CC") {
+	hasTable := hasBankHistoryTableText(content, unionSavingsProfile.description)
+	if !isPDF || strings.Contains(name, "_CC") || strings.Contains(content, "TOTAL AMOUNT DUE") || strings.Contains(content, "CREDIT CARD") && !hasTable {
 		return 0, "", models.AccountTypeSavings
 	}
 	confidence := 0.0
@@ -48,6 +49,7 @@ var unionSavingsProfile = bankHistoryProfile{
 	creditHeaders:  []string{"DEPOSIT", "CREDIT"},
 	balanceHeaders: []string{"BALANCE"},
 	reference:      []string{"CHQ NUM", "CHEQUE NUMBER", "CHEQUE NO", "REFERENCE"},
+	accountPattern: regexp.MustCompile(`(?i)(?:account\s*(?:number|no\.?)|a/c\s*(?:number|no\.?))\s*:?\s*([0-9X*]{8,20})\b`),
 	periodPattern:  regexp.MustCompile(`(?i)period\s+from\s+(\d{2}-\d{2}-\d{4})\s+to\s+(\d{2}-\d{2}-\d{4})`),
 	openingPattern: regexp.MustCompile(`(?i)opening\s+balance\s*:?\s*([0-9][0-9,]*(?:\.\d{2})?)\s*(CR|DR)?`),
 	closingPattern: regexp.MustCompile(`(?i)closing\s+balance\s*:?\s*([0-9][0-9,]*(?:\.\d{2})?)\s*(CR|DR)?`),

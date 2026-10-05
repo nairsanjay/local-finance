@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"regexp"
@@ -65,7 +66,7 @@ func (s *TransactionService) ImportStatement(filename string, r io.Reader, manua
 		selectedParser = p
 		confidence = 1.0
 	} else {
-		selectedParser, confidence, detectedMeta = s.registry.Detect(filename, workingBytes[:min(65536, len(workingBytes))])
+		selectedParser, confidence, detectedMeta = s.registry.Detect(filename, workingBytes)
 		if selectedParser == nil || confidence < 0.2 {
 			return nil, fmt.Errorf("could not auto-detect format for file '%s'. Please choose a specific bank format", filename)
 		}
@@ -291,13 +292,12 @@ func (s *TransactionService) PreviewStatement(filename string, r io.Reader, manu
 		if decErr == nil && len(decrypted) > 0 {
 			workingBytes = decrypted
 		} else if decErr != nil {
-			errStr := decErr.Error()
-			if strings.Contains(strings.ToLower(errStr), "password") || strings.Contains(strings.ToLower(errStr), "encrypted") || strings.Contains(strings.ToLower(errStr), "decrypt") {
+			if errors.Is(decErr, extractor.ErrPDFPasswordRequired) {
 				res.RequiresPassword = true
-				res.Error = "Password required to open encrypted statement PDF"
+				res.Error = decErr.Error()
 				return res, nil
 			}
-			res.Error = fmt.Sprintf("Failed to decrypt PDF: %s", errStr)
+			res.Error = fmt.Sprintf("Failed to open PDF: %s", decErr)
 			return res, nil
 		}
 	}
@@ -316,7 +316,7 @@ func (s *TransactionService) PreviewStatement(filename string, r io.Reader, manu
 		selectedParser = p
 		confidence = 1.0
 	} else {
-		selectedParser, confidence, detectedMeta = s.registry.Detect(filename, workingBytes[:min(65536, len(workingBytes))])
+		selectedParser, confidence, detectedMeta = s.registry.Detect(filename, workingBytes)
 		if selectedParser == nil || confidence < 0.2 {
 			if isPDF && extractor.IsPDFEncrypted(bytes.NewReader(fileBytes)) {
 				res.RequiresPassword = true
@@ -341,13 +341,12 @@ func (s *TransactionService) PreviewStatement(filename string, r io.Reader, manu
 		Filename:  filename,
 	})
 	if err != nil {
-		errStr := err.Error()
-		if strings.Contains(strings.ToLower(errStr), "password") || strings.Contains(strings.ToLower(errStr), "encrypted") || strings.Contains(strings.ToLower(errStr), "decrypt") {
+		if errors.Is(err, extractor.ErrPDFPasswordRequired) {
 			res.RequiresPassword = true
-			res.Error = "Password required to open encrypted statement PDF"
+			res.Error = err.Error()
 			return res, nil
 		}
-		res.Error = fmt.Sprintf("Parser failed: %s", errStr)
+		res.Error = fmt.Sprintf("Parser failed: %s", err)
 		return res, nil
 	}
 
@@ -395,12 +394,30 @@ func (s *TransactionService) PreviewStatement(filename string, r io.Reader, manu
 	var accountID string
 	if manualAccountID != "" {
 		accountID = manualAccountID
-	} else if meta.AccountNumberMask != "" {
+	} else {
 		if accounts, err := s.db.ListAccounts(); err == nil {
 			for _, a := range accounts {
-				if a.AccountNumberMask == meta.AccountNumberMask {
+				if a.BankName != res.BankName {
+					continue
+				}
+				storedNumber := ""
+				if a.AccountNumber != nil {
+					storedNumber = *a.AccountNumber
+				}
+				// Match the same identity policy as GetOrCreateAccount. An exact
+				// full-number match takes priority over a mask-only candidate.
+				if meta.AccountNumber != "" && storedNumber == meta.AccountNumber {
 					accountID = a.ID
 					break
+				}
+				if string(a.AccountType) != res.AccountType || meta.AccountNumber != "" && storedNumber != "" {
+					continue
+				}
+				if meta.AccountNumberMask != "" && a.AccountNumberMask == meta.AccountNumberMask ||
+					meta.AccountNumber == "" && meta.AccountNumberMask == "" && storedNumber == "" && a.AccountNumberMask == "" {
+					if accountID == "" {
+						accountID = a.ID
+					}
 				}
 			}
 		}

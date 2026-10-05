@@ -1,11 +1,13 @@
 package parser
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"strings"
 
 	"local-finance/internal/models"
+	"local-finance/internal/parser/extractor"
 )
 
 type StatementType string
@@ -114,11 +116,34 @@ func (r *Registry) List() []StatementParser {
 }
 
 func (r *Registry) Detect(filename string, sample []byte) (StatementParser, float64, StatementMeta) {
+	isPDF := bytes.HasPrefix(sample, []byte("%PDF")) || strings.HasSuffix(strings.ToUpper(filename), ".PDF")
+	// PDF content streams are usually compressed. Inspect their extracted text
+	// once for every adapter, rather than relying on institution-specific names.
+	if bytes.HasPrefix(sample, []byte("%PDF")) {
+		if text, err := extractor.ExtractPDFText(bytes.NewReader(sample), ""); err == nil {
+			sample = []byte("%PDF\n" + text)
+		}
+	}
+	if isPDF && isInvestmentStatement(string(sample)) {
+		return nil, 0, StatementMeta{}
+	}
 	var bestParser StatementParser
 	var highestConfidence float64
 	var bestMeta StatementMeta
 
 	for _, p := range r.parsers {
+		if isPDF {
+			supportsPDF := false
+			for _, typ := range p.SupportedTypes() {
+				if typ == TypeSavingsPDF || typ == TypeCreditCardPDF {
+					supportsPDF = true
+					break
+				}
+			}
+			if !supportsPDF {
+				continue
+			}
+		}
 		conf, bankName, accType := p.CanParse(filename, sample)
 		if conf > highestConfidence {
 			highestConfidence = conf

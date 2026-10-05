@@ -1,12 +1,12 @@
-package parser
+package integration_test
 
 import (
 	"bytes"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"local-finance/internal/models"
+	"local-finance/internal/parser"
+	"local-finance/internal/service"
 )
 
 func TestSyntheticBankHistoryPDFSamplesEndToEnd(t *testing.T) {
@@ -20,21 +20,19 @@ func TestSyntheticBankHistoryPDFSamplesEndToEnd(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.file, func(t *testing.T) {
-			path := filepath.Join("..", "..", "samples", "savings", tc.file)
-			data, err := os.ReadFile(path)
-			if err != nil {
-				t.Fatalf("read synthetic PDF fixture: %v", err)
-			}
+			data := syntheticSamplePDF(t, tc.file)
 
-			selected, confidence, detected := DefaultRegistry.Detect(tc.file, data)
+			// These fixtures use compressed content streams. A generic filename
+			// must be detected from extracted PDF text rather than the bank name.
+			selected, confidence, detected := parser.DefaultRegistry.Detect("statement.pdf", data)
 			if selected == nil {
 				t.Fatal("registry did not detect the synthetic statement")
 			}
-			if selected.ID() != tc.parserID || confidence < 0.5 || detected.BankName != tc.bank || detected.AccountType != models.AccountTypeSavings {
+			if selected.ID() != tc.parserID || confidence < 0.9 || detected.BankName != tc.bank || detected.AccountType != models.AccountTypeSavings {
 				t.Fatalf("unexpected detection: parser=%v confidence=%.2f meta=%+v", selected.ID(), confidence, detected)
 			}
 
-			transactions, meta, err := selected.Parse(bytes.NewReader(data), ParseOptions{Filename: tc.file})
+			transactions, meta, err := selected.Parse(bytes.NewReader(data), parser.ParseOptions{Filename: tc.file})
 			if err != nil {
 				t.Fatalf("parse synthetic statement: %v", err)
 			}
@@ -49,6 +47,22 @@ func TestSyntheticBankHistoryPDFSamplesEndToEnd(t *testing.T) {
 			}
 			if meta.BankName != tc.bank || meta.OpeningBalance != 1000 || meta.ClosingBalance != 1150 || meta.TotalDebits != 100 || meta.TotalCredits != 250 {
 				t.Errorf("unexpected statement controls: %+v", meta)
+			}
+
+			svc := service.NewTransactionService(testDatabase(t))
+			preview, err := svc.PreviewStatement("statement.pdf", bytes.NewReader(data), "", "", "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if preview.Error != "" || preview.TotalTransactions != 2 {
+				t.Fatalf("generic filename preview failed: %+v", preview)
+			}
+			result, err := svc.ImportStatement("statement.pdf", bytes.NewReader(data), "", "", "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.TotalParsed != 2 || result.InsertedCount != 2 {
+				t.Fatalf("generic filename import failed: %+v", result)
 			}
 		})
 	}
