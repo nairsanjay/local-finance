@@ -12,9 +12,11 @@ import (
 	"local-finance/internal/parser/extractor"
 )
 
-// bankHistoryProfile describes only the institution-specific headings. The
-// shared parser below handles column discovery, money parsing, and running
-// balance reconciliation so new bank adapters stay small and auditable.
+// Shared bank-history parsing utilities. Institution-specific adapters keep
+// their own detection and statement profiles; these helpers handle the common
+// positional-table parsing and reconciliation mechanics.
+//
+// bankHistoryProfile describes the adapter-provided headings and controls.
 type bankHistoryProfile struct {
 	bankName       string
 	accountType    models.AccountType
