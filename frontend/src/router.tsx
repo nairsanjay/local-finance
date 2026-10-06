@@ -36,6 +36,7 @@ import { GuideView } from '@/components/guide/GuideView'
 import { WhatsNewView } from '@/components/whatsnew/WhatsNewView'
 import { WrappedView } from '@/components/wrapped/WrappedView'
 import { SalaryView } from '@/components/salary/SalaryView'
+import { InvestmentsView } from '@/components/investments/InvestmentsView'
 import { PrivacyProvider } from '@/components/privacy-provider'
 import { PrivacyToggle } from '@/components/layout/PrivacyToggle'
 import { UpdateIndicator } from '@/components/updates/UpdateIndicator'
@@ -80,6 +81,7 @@ const RootLayoutContent: React.FC = () => {
       case '/transactions': return 'Transactions Ledger'
       case '/cashflow': return 'Cash Flow & Sankey'
       case '/salary': return 'Salary & Income Insights'
+      case '/investments': return 'Investments'
       case '/calendar': return 'Spending Calendar'
       case '/budget': return 'Category Budgets'
       case '/cards': return 'Credit Cards & Rewards'
@@ -562,6 +564,7 @@ const salaryRoute = createRoute({
 })
 
 const routeTree = rootRoute.addChildren([
+  createRoute({ getParentRoute: () => rootRoute, path: '/investments', component: InvestmentsView }),
   indexRoute,
   transactionsRoute,
   cashflowRoute,

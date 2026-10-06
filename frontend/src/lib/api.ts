@@ -12,6 +12,28 @@ import {
 
 const BASE_URL = '/api'
 
+export async function fetchInvestments(): Promise<import('../types/investments').InvestmentSnapshot[]> {
+  const res = await fetchWithAuth(`${BASE_URL}/investments`)
+  if (!res.ok) throw new Error('Unable to load investments')
+  return res.json()
+}
+
+export async function importInvestment(file: File): Promise<{ snapshot: import('../types/investments').InvestmentSnapshot; duplicate: boolean }> {
+  const body = new FormData()
+  body.append('file', file)
+  const res = await fetchWithAuth(`${BASE_URL}/investments/import`, { method: 'POST', body })
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ error: 'Unable to import investment statement' }))
+    throw new Error(error.error)
+  }
+  return res.json()
+}
+
+export async function deleteInvestment(id: string): Promise<void> {
+  const res = await fetchWithAuth(`${BASE_URL}/investments/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error('Unable to delete investment snapshot')
+}
+
 export async function fetchMonthlyReview(month?: string): Promise<import('../types/monthly-review').MonthlyReviewData> {
   const query = new URLSearchParams(month ? { month } : {})
   const res = await fetchWithAuth(`${BASE_URL}/analytics/monthly-review?${query}`)

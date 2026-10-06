@@ -77,6 +77,10 @@ func (d *DB) ResetDatabase() error {
 	}
 	defer tx.Rollback()
 
+	if _, err := tx.Exec(`DELETE FROM investment_snapshots`); err != nil {
+		return err
+	}
+
 	if _, err := tx.Exec(`DELETE FROM subscriptions`); err != nil {
 		return err
 	}
@@ -1798,6 +1802,10 @@ func (d *DB) RestoreFrom(r io.Reader) error {
 func (d *DB) ExportAllDataJSON() (*models.FullExportData, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
+	investments, err := d.ListInvestmentSnapshots()
+	if err != nil {
+		return nil, err
+	}
 
 	accounts, err := d.ListAccounts()
 	if err != nil {
@@ -1825,6 +1833,7 @@ func (d *DB) ExportAllDataJSON() (*models.FullExportData, error) {
 	}
 
 	return &models.FullExportData{
+		Investments:      investments,
 		ExportedAt:       time.Now(),
 		Version:          "1.0",
 		Accounts:         accounts,
