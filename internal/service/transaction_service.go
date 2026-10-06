@@ -48,8 +48,10 @@ func (s *TransactionService) ImportStatement(filename string, r io.Reader, manua
 		decrypted, decErr := extractor.DecryptPDFIfNeeded(fileBytes, password)
 		if decErr == nil && len(decrypted) > 0 {
 			workingBytes = decrypted
-		} else if decErr != nil && password != "" {
-			return nil, decErr
+		} else if decErr != nil {
+			if errors.Is(decErr, extractor.ErrPDFPasswordRequired) || password != "" {
+				return nil, decErr
+			}
 		}
 	}
 

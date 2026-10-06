@@ -25,7 +25,7 @@ func (p *ICICISavingsPDFParser) CanParse(filename string, sample []byte) (float6
 	content := strings.ToUpper(strings.Join(strings.Fields(string(sample)), " "))
 	isPDF := strings.HasSuffix(name, ".PDF") || strings.HasPrefix(string(sample), "%PDF")
 	hasTable := hasBankHistoryTableText(content, iciciSavingsProfile.description)
-	if !isPDF || strings.Contains(name, "_CC") || strings.Contains(content, "TOTAL AMOUNT DUE") || strings.Contains(content, "CREDIT CARD") && !hasTable {
+	if !isPDF || isInvestmentStatement(string(sample)) || strings.Contains(name, "_CC") || strings.Contains(content, "TOTAL AMOUNT DUE") || strings.Contains(content, "CREDIT CARD") && !hasTable {
 		return 0, "", models.AccountTypeSavings
 	}
 	confidence := 0.0
@@ -44,6 +44,9 @@ var iciciSavingsProfile = bankHistoryProfile{
 	accountType:    models.AccountTypeSavings,
 	formatName:     "PDF",
 	identityTerm:   "ICICI Bank",
+	identityTerms:  []string{"ICICI BANK", "ICICI"},
+	statementTerm:  "Saving Account",
+	statementTerms: []string{"Saving Account", "Savings Account", "Statement of Transactions", "Account Statement"},
 	recognition:    []string{"DATE", "BALANCE"},
 	dateHeaders:    []string{"TRANSACTION DATE", "DATE"},
 	description:    []string{"TRANSACTION REMARKS", "REMARKS", "PARTICULARS"},

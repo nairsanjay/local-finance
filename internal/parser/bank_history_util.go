@@ -24,7 +24,9 @@ type bankHistoryProfile struct {
 	formatName     string
 	recognition    []string
 	identityTerm   string
+	identityTerms  []string
 	statementTerm  string
+	statementTerms []string
 	dateHeaders    []string
 	description    []string
 	debitHeaders   []string
@@ -49,6 +51,13 @@ type bankHistoryColumns struct {
 type bankHistoryRow struct {
 	tx      ParsedTransaction
 	balance float64
+}
+
+type bankHistoryBalances struct {
+	openingFound bool
+	opening      float64
+	closingFound bool
+	closing      float64
 }
 
 var (
@@ -77,7 +86,32 @@ func parseBankHistoryRows(rows []extractor.PositionalRow, profile bankHistoryPro
 	if isInvestmentStatement(documentText) {
 		return nil, meta, fmt.Errorf("investment statements are not supported by the %s bank statement parser", profile.bankName)
 	}
-	if !strings.Contains(documentText, strings.ToUpper(profile.identityTerm)) || !strings.Contains(documentText, strings.ToUpper(profile.statementTerm)) {
+
+	identityTerms := profile.identityTerms
+	if len(identityTerms) == 0 && profile.identityTerm != "" {
+		identityTerms = []string{profile.identityTerm}
+	}
+	identityMatches := len(identityTerms) == 0
+	for _, term := range identityTerms {
+		if strings.Contains(documentText, strings.ToUpper(term)) {
+			identityMatches = true
+			break
+		}
+	}
+
+	statementTerms := profile.statementTerms
+	if len(statementTerms) == 0 && profile.statementTerm != "" {
+		statementTerms = []string{profile.statementTerm}
+	}
+	statementMatches := len(statementTerms) == 0
+	for _, term := range statementTerms {
+		if strings.Contains(documentText, strings.ToUpper(term)) {
+			statementMatches = true
+			break
+		}
+	}
+
+	if !identityMatches || !statementMatches {
 		return nil, meta, fmt.Errorf("document does not match the %s account statement format", profile.bankName)
 	}
 	for index, row := range rows {
@@ -247,9 +281,15 @@ func parseBankHistoryRows(rows []extractor.PositionalRow, profile bankHistoryPro
 	// Bank exports can run oldest-first or newest-first, including within a day.
 	// Reverse the complete sequence when required; sorting by date alone loses
 	// the order of same-day transactions.
-	if !bankHistorySequenceReconciles(parsed, openingFound, meta.OpeningBalance, closingFound, meta.ClosingBalance) {
+	balances := bankHistoryBalances{
+		openingFound: openingFound,
+		opening:      meta.OpeningBalance,
+		closingFound: closingFound,
+		closing:      meta.ClosingBalance,
+	}
+	if !bankHistorySequenceReconciles(parsed, balances) {
 		slices.Reverse(parsed)
-		if !bankHistorySequenceReconciles(parsed, openingFound, meta.OpeningBalance, closingFound, meta.ClosingBalance) {
+		if !bankHistorySequenceReconciles(parsed, balances) {
 			return nil, meta, fmt.Errorf("%s dated transactions and running balances do not reconcile in source or reverse order", profile.bankName)
 		}
 	}
@@ -484,8 +524,8 @@ func coalesceBankHistoryRows(rows []extractor.PositionalRow, profile bankHistory
 			left--
 		}
 		for right+1 < len(rows) && rows[right+1].Page == row.Page && absFloat(rows[right+1].Y-row.Y) <= 12 {
-			candidate := rows[right+1]
-			if _, header := discoverBankHistoryColumns(candidate, profile); header || profile.stopPattern != nil && profile.stopPattern.MatchString(bankHistoryRowText(candidate)) {
+			candid := rows[right+1]
+			if _, header := discoverBankHistoryColumns(candid, profile); header || profile.stopPattern != nil && profile.stopPattern.MatchString(bankHistoryRowText(candid)) {
 				break
 			}
 			right++
@@ -711,18 +751,18 @@ func bankHistoryColumnBounds(position float64, columns bankHistoryColumns) (floa
 	return start, end
 }
 
-func bankHistorySequenceReconciles(rows []bankHistoryRow, openingFound bool, opening float64, closingFound bool, closing float64) bool {
+func bankHistorySequenceReconciles(rows []bankHistoryRow, balances bankHistoryBalances) bool {
 	for index, row := range rows {
 		previous := bankHistoryPreviousBalance(row)
 		if index == 0 {
-			if openingFound && !historyMoneyEqual(opening, previous) {
+			if balances.openingFound && !historyMoneyEqual(balances.opening, previous) {
 				return false
 			}
 		} else if row.tx.Date < rows[index-1].tx.Date || !historyMoneyEqual(rows[index-1].balance, previous) {
 			return false
 		}
 	}
-	return !closingFound || historyMoneyEqual(closing, rows[len(rows)-1].balance)
+	return !balances.closingFound || historyMoneyEqual(balances.closing, rows[len(rows)-1].balance)
 }
 
 func bankHistoryPreviousBalance(row bankHistoryRow) float64 {

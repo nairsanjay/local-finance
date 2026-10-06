@@ -124,9 +124,6 @@ func (r *Registry) Detect(filename string, sample []byte) (StatementParser, floa
 			sample = []byte("%PDF\n" + text)
 		}
 	}
-	if isPDF && isInvestmentStatement(string(sample)) {
-		return nil, 0, StatementMeta{}
-	}
 	var bestParser StatementParser
 	var highestConfidence float64
 	var bestMeta StatementMeta
