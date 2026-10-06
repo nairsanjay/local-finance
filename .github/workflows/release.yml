@@ -100,8 +100,12 @@ jobs:
           cp -R "${APP_PATH}" "${STAGING}/"
           ln -s /Applications "${STAGING}/Applications"
 
+          # Calculate folder size and add buffer for filesystem structures
+          SRC_SIZE_MB=$(du -sm "${STAGING}" | cut -f1)
+          IMG_SIZE_MB=$(( SRC_SIZE_MB * 2 + 50 ))
+
           # Create compressed DMG
-          hdiutil create -volname "LocalFinance" -srcfolder "${STAGING}" -ov -format UDZO "dist/LocalFinance.dmg"
+          hdiutil create -volname "LocalFinance" -srcfolder "${STAGING}" -ov -format UDZO -fs HFS+ -size "${IMG_SIZE_MB}m" "dist/LocalFinance.dmg"
           rm -rf "${STAGING}"
 
       - name: Package macOS CLI Archive
