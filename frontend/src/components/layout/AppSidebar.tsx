@@ -1,4 +1,8 @@
 import React from 'react'
+import { useSystemUpdate } from '@/hooks/use-system-update'
+import { UpdateDialog } from '@/components/updates/UpdateDialog'
+import { ArrowUpCircle } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { Link, useRouterState } from '@tanstack/react-router'
 import {
   LayoutDashboard,
@@ -133,6 +137,7 @@ const helpNavItems: NavItem[] = [
 export const AppSidebar: React.FC = () => {
   const routerState = useRouterState()
   const currentPath = routerState.location.pathname
+  const { versionInfo, dialogOpen, setDialogOpen, refetch } = useSystemUpdate()
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
@@ -272,6 +277,18 @@ export const AppSidebar: React.FC = () => {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
+              {versionInfo?.update_available && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => setDialogOpen(true)}
+                    tooltip={`Update Available: ${versionInfo.latest_version}`}
+                    className="h-9 gap-3 rounded-md px-2.5 text-xs font-semibold transition-colors bg-primary/10 text-primary hover:bg-primary/20"
+                  >
+                    <ArrowUpCircle className="h-4 w-4 shrink-0 text-primary" />
+                    <span className="truncate">Update to {versionInfo.latest_version}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
               {helpNavItems.map((item) => {
                 const Icon = item.icon
                 const isActive = currentPath === item.url
@@ -314,14 +331,30 @@ export const AppSidebar: React.FC = () => {
               <span className="text-xs font-semibold text-foreground truncate">
                 local_finance.db
               </span>
-              <span className="text-[10px] text-muted-foreground truncate">
-                Zero Cloud • Local Only
-              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setDialogOpen(true)}
+                className="h-auto p-0 text-[10px] text-muted-foreground hover:text-primary hover:bg-transparent transition-colors justify-start font-normal gap-1 cursor-pointer"
+              >
+                <span>{versionInfo?.current_version || 'v1.2.0'}</span>
+                {versionInfo?.update_available && (
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                )}
+                <span>• Local Only</span>
+              </Button>
             </div>
           </div>
           <ModeToggle />
         </div>
       </SidebarFooter>
+
+      <UpdateDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        versionInfo={versionInfo || null}
+        onUpdateSuccess={() => refetch()}
+      />
 
       {/* Drag & Hover Rail for Collapsing */}
       <SidebarRail />
