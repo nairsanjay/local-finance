@@ -35,24 +35,29 @@ var (
 
 func (p *HDFCSavingsPDFParser) CanParse(filename string, sample []byte) (float64, string, models.AccountType) {
 	nameUpper := strings.ToUpper(filename)
-	content := strings.ToUpper(string(sample))
+	content := strings.ToUpper(strings.Join(strings.Fields(string(sample)), " "))
 	isPDF := strings.HasSuffix(nameUpper, ".PDF") || (len(sample) > 4 && string(sample[:4]) == "%PDF")
 
-	if !isPDF {
+	if !isPDF || isInvestmentStatement(string(sample)) {
 		return 0.0, "", models.AccountTypeSavings
 	}
 
-	// If it contains credit card keywords, do not parse as savings/current
+	hasTable := hasBankHistoryTableText(content, []string{"NARRATION"})
+	// Card filenames and billing summaries are format evidence. A card-payment
+	// narration alone must not override the verified bank table headings.
 	if strings.Contains(nameUpper, "REGALIA") || strings.Contains(nameUpper, "RUPAY") ||
 		strings.Contains(nameUpper, "SWIGGY") || strings.Contains(nameUpper, "INFINIA") ||
 		strings.Contains(nameUpper, "MILLENNIA") || strings.Contains(nameUpper, "_CC") ||
-		strings.Contains(content, "TOTAL AMOUNT DUE") || strings.Contains(content, "CREDIT CARD") {
+		strings.Contains(content, "TOTAL AMOUNT DUE") || strings.Contains(content, "CREDIT CARD") && !hasTable {
 		return 0.0, "", models.AccountTypeSavings
 	}
 
 	confidence := 0.0
 	if strings.Contains(nameUpper, "HDFC") || strings.Contains(content, "HDFC BANK") || strings.Contains(content, "HDFC00") {
 		confidence += 0.5
+	}
+	if hasTable {
+		confidence += 0.45
 	}
 	if strings.Contains(nameUpper, "ACCT_STATEMENT") || strings.Contains(nameUpper, "ACCOUNT_STATEMENT") {
 		confidence += 0.5
@@ -94,6 +99,9 @@ func (p *HDFCSavingsPDFParser) Parse(r io.Reader, opts ParseOptions) ([]ParsedTr
 	rows, err := extractor.ExtractPDFPositionalRows(r, opts.Password)
 	if err != nil {
 		return nil, StatementMeta{}, fmt.Errorf("failed to extract PDF rows: %w", err)
+	}
+	if isInvestmentStatement(bankHistoryDocumentText(rows)) {
+		return nil, StatementMeta{}, fmt.Errorf("investment statements are not supported by the HDFC bank statement parser")
 	}
 
 	meta := StatementMeta{

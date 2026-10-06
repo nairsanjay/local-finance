@@ -275,13 +275,17 @@ func (d *DB) GetOrCreateAccount(bankName string, accType models.AccountType, acc
 
 	var row *sql.Row
 	if accNum != "" {
-		// Prefer matching by full account number or same bank/type/mask
+		// Full numbers override mask similarity. A mask-only account can be
+		// upgraded when its labeled mask matches, but different known full
+		// account numbers must never merge solely because their last four match.
 		row = d.conn.QueryRow(`
 			SELECT id, bank_name, account_type, account_number, account_number_mask, currency, opening_balance, current_balance, credit_limit, billing_cycle_day, nickname, customer_id, ifsc_code, branch_name, card_network, card_variant, account_holder_name, created_at, updated_at
 			FROM accounts
-			WHERE bank_name = ? AND (account_number = ? OR (account_type = ? AND account_number_mask = ?))
+			WHERE bank_name = ? AND (account_number = ? OR
+				(account_type = ? AND ? <> '' AND account_number_mask = ? AND (account_number IS NULL OR account_number = '')))
+			ORDER BY CASE WHEN account_number = ? THEN 0 ELSE 1 END
 			LIMIT 1
-		`, bankName, accNum, accType, mask)
+		`, bankName, accNum, accType, mask, mask, accNum)
 	} else if mask != "" {
 		// Match by bank, account_type and mask
 		row = d.conn.QueryRow(`

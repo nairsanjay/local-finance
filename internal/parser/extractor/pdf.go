@@ -2,6 +2,7 @@ package extractor
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"sort"
@@ -9,13 +10,20 @@ import (
 
 	"github.com/dslipak/pdf"
 	"github.com/pdfcpu/pdfcpu/pkg/api"
+	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/model"
 )
+
+// ErrPDFPasswordRequired distinguishes failed authentication from a damaged or
+// unsupported PDF. Structural failures are not corrected by another password.
+var ErrPDFPasswordRequired = errors.New("statement password required or incorrect")
 
 // PositionalElement represents a word or token at a specific horizontal coordinate
 type PositionalElement struct {
 	X float64
 	S string
+	// EndX is the measured end of the text block; zero means unavailable.
+	EndX float64
 }
 
 // PositionalRow represents a horizontal row of text elements on a specific page
@@ -79,7 +87,7 @@ func ExtractPDFPositionalRows(r io.Reader, password string) ([]PositionalRow, er
 
 		flushWord := func() {
 			if curWord.Len() > 0 {
-				curRow = append(curRow, PositionalElement{X: wordStartX, S: strings.TrimSpace(curWord.String())})
+				curRow = append(curRow, PositionalElement{X: wordStartX, S: strings.TrimSpace(curWord.String()), EndX: lastCharEndX})
 				curWord.Reset()
 			}
 		}
@@ -168,14 +176,7 @@ func IsPDFEncrypted(r io.Reader) bool {
 	if err == nil {
 		return false
 	}
-	errStr := strings.ToLower(err.Error())
-	if strings.Contains(errStr, "not encrypted") {
-		return false
-	}
-	if strings.Contains(errStr, "password") || strings.Contains(errStr, "encryption setup") || strings.Contains(errStr, "encrypt") {
-		return true
-	}
-	return false
+	return errors.Is(err, pdfcpu.ErrWrongPassword) || errors.Is(err, pdfcpu.ErrEncrypted)
 }
 
 // DecryptPDFIfNeeded checks if the PDF is encrypted and decrypts it with the given password.
@@ -193,15 +194,31 @@ func DecryptPDFIfNeeded(data []byte, password string) ([]byte, error) {
 
 	var decryptedBuf bytes.Buffer
 	err := api.Decrypt(bytes.NewReader(data), &decryptedBuf, conf)
+	// This failure follows successful password authentication. Some R5 exports
+	// omit EncryptMetadata although their protected /Perms flag is false. Retry
+	// only that missing flag; pdfcpu still verifies the password, magic, /P and
+	// metadata flag. Never accept an invalid /Perms block or an explicit mismatch.
+	// The compatibility path also checks reserved permission bytes and repairs
+	// only legacy IV-only empty Form streams before the full decoding retry.
+	if err != nil && strings.Contains(err.Error(), "password permissions: invalid permissions") {
+		if normalized, normalizeErr := normalizeMissingPDFMetadataFlag(data, conf.UserPW); normalizeErr == nil {
+			decryptedBuf.Reset()
+			if retryErr := api.Decrypt(bytes.NewReader(normalized), &decryptedBuf, conf); retryErr == nil {
+				return decryptedBuf.Bytes(), nil
+			}
+		}
+	}
 	if err != nil {
-		errStr := strings.ToLower(err.Error())
-		if strings.Contains(errStr, "not encrypted") {
+		if errors.Is(err, pdfcpu.ErrNotEncrypted) {
 			return data, nil
 		}
-		if strings.TrimSpace(password) == "" {
-			return nil, fmt.Errorf("this statement is password-protected. Please enter your statement password")
+		if errors.Is(err, pdfcpu.ErrWrongPassword) {
+			if strings.TrimSpace(password) == "" {
+				return nil, fmt.Errorf("%w: please enter your statement password", ErrPDFPasswordRequired)
+			}
+			return nil, fmt.Errorf("%w: the supplied statement password was rejected", ErrPDFPasswordRequired)
 		}
-		return nil, fmt.Errorf("incorrect password or unable to decrypt PDF: %w", err)
+		return nil, fmt.Errorf("unable to decode PDF: %w", err)
 	}
 
 	return decryptedBuf.Bytes(), nil
