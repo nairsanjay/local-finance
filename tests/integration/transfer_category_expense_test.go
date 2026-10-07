@@ -100,7 +100,8 @@ func TestTransferCategoryExcludedAfterResetAndImport(t *testing.T) {
 	const statement = `Date,Narration,Chq/Ref,Value Dt,Withdrawal,Deposit,Closing Balance
 01/04/2026,NEFT CR-ABC123-EMPLOYER-SALARY,ABC123,01/04/2026,,1000,1000
 02/04/2026,UPI-ALEX-alex@okhdfcbank-HDFC-123456789012-SELF TRANSFER,DEMO123,02/04/2026,500,,500
-03/04/2026,UPI-SHOP-shop@okhdfcbank-HDFC-123456789014-PAYMENT,123456789014,03/04/2026,100,,400
+03/04/2026,UPI-ALEX-alex@okhdfcbank-HDFC-123456789013-SELF TRANSFER,DEMO124,03/04/2026,,500,1000
+04/04/2026,UPI-SHOP-shop@okhdfcbank-HDFC-123456789014-PAYMENT,123456789014,04/04/2026,100,,900
 `
 	for _, reset := range []bool{false, true} {
 		if reset {
@@ -114,7 +115,7 @@ func TestTransferCategoryExcludedAfterResetAndImport(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if attempt == 0 && result.InsertedCount != 3 || attempt == 1 && (result.InsertedCount != 0 || result.DuplicateCount != 3) {
+			if attempt == 0 && result.InsertedCount != 4 || attempt == 1 && (result.InsertedCount != 0 || result.DuplicateCount != 4) {
 				t.Fatalf("unexpected import counts: %+v", result)
 			}
 			overview, err := database.GetAnalyticsOverview()
@@ -122,11 +123,11 @@ func TestTransferCategoryExcludedAfterResetAndImport(t *testing.T) {
 				t.Fatalf("reset=%v attempt=%d: totals %+v error %v", reset, attempt, overview, err)
 			}
 			flow, err := database.GetCashFlowIntelligence("2026-04")
-			if err != nil || flow.Summary.TotalOutflow != 100 || flow.Sankey.TotalOutflow != 100 {
+			if err != nil || flow.Summary.TotalInflow != 1000 || flow.Summary.TotalOutflow != 100 || flow.Sankey.TotalOutflow != 100 {
 				t.Fatalf("cash flow includes category transfer: %+v %v", flow, err)
 			}
 			rows, count, err := database.ListTransactions(db.TransactionFilter{Limit: 10})
-			if err != nil || count != 3 {
+			if err != nil || count != 4 {
 				t.Fatalf("ledger lost rows: %d %v", count, err)
 			}
 			for _, row := range rows {
