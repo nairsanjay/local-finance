@@ -2,6 +2,7 @@ package models
 
 // InvestmentSnapshot is a complete, dated portfolio, never a bank transaction.
 // Providers normalize into this model; original statement fields remain available.
+// Market valuations and returns are nil when absent from a report; zero remains a real value.
 type InvestmentSnapshot struct {
 	ID               string              `json:"id"`
 	Provider         string              `json:"provider"`
@@ -12,8 +13,8 @@ type InvestmentSnapshot struct {
 	Filename         string              `json:"filename"`
 	ImportedAt       string              `json:"imported_at"`
 	InvestedValue    float64             `json:"invested_value"`
-	CurrentValue     float64             `json:"current_value"`
-	UnrealizedReturn float64             `json:"unrealized_return"`
+	CurrentValue     *float64            `json:"current_value"`
+	UnrealizedReturn *float64            `json:"unrealized_return"`
 	ReturnPercent    *float64            `json:"return_percent"`
 	Holdings         []InvestmentHolding `json:"holdings"`
 	Sheets           []InvestmentSheet   `json:"sheets"`
@@ -26,10 +27,10 @@ type InvestmentHolding struct {
 	AssetClass       string            `json:"asset_class"`
 	Quantity         float64           `json:"quantity"`
 	AveragePrice     float64           `json:"average_price"`
-	ClosingPrice     float64           `json:"closing_price"`
+	ClosingPrice     *float64          `json:"closing_price"`
 	InvestedValue    float64           `json:"invested_value"`
-	CurrentValue     float64           `json:"current_value"`
-	UnrealizedReturn float64           `json:"unrealized_return"`
+	CurrentValue     *float64          `json:"current_value"`
+	UnrealizedReturn *float64          `json:"unrealized_return"`
 	ReturnPercent    *float64          `json:"return_percent"`
 	Fields           map[string]string `json:"fields"`
 }

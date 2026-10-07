@@ -1,0 +1,153 @@
+package investment
+
+import (
+	"fmt"
+	"math"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"local-finance/internal/models"
+)
+
+// INDmoney's US holdings export contains acquisition costs, not market quotes.
+type INDmoneyHoldingsParser struct{}
+
+func (INDmoneyHoldingsParser) ID() string { return "indmoney_us_holdings_xls_v1" }
+func (INDmoneyHoldingsParser) Info() ParserInfo {
+	return ParserInfo{Provider: "INDmoney", Name: "US stock holdings export", Extensions: []string{".xls"}}
+}
+
+var indmoneyHeaders = []string{"Stock Symbol", "Holding Since", "Quantity", "Avg. Price ($)", "Total Value ($)"}
+
+func indmoneyHeader(row []string) bool {
+	cols := columns(row)
+	for _, name := range indmoneyHeaders {
+		if _, ok := cols[name]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
+func (INDmoneyHoldingsParser) CanParse(filename string, data []byte) bool {
+	if !strings.EqualFold(filepath.Ext(filename), ".xls") {
+		return false
+	}
+	sheets, err := readLegacyInvestmentSheets(data)
+	return err == nil && isINDmoneyHoldings(sheets)
+}
+
+func isINDmoneyHoldings(sheets []models.InvestmentSheet) bool {
+	brand, header, account, date := false, false, false, false
+	for _, sheet := range sheets {
+		for _, row := range sheet.Rows {
+			if indmoneyHeader(row) {
+				header = true
+			}
+			if cell(row, 0) == "Broker Account" && cell(row, 1) != "" {
+				account = true
+			}
+			if cell(row, 0) == "Holdings as on" && cell(row, 1) != "" {
+				date = true
+			}
+			for _, v := range row {
+				if strings.Contains(strings.ToLower(v), "indmoney") {
+					brand = true
+				}
+			}
+		}
+	}
+	return brand && header && account && date
+}
+
+func (INDmoneyHoldingsParser) Parse(data []byte) (*models.InvestmentSnapshot, error) {
+	sheets, err := readLegacyInvestmentSheets(data)
+	if err != nil {
+		return nil, err
+	}
+	return parseINDmoneyHoldings(sheets)
+}
+
+func parseINDmoneyHoldings(sheets []models.InvestmentSheet) (*models.InvestmentSnapshot, error) {
+	if !isINDmoneyHoldings(sheets) {
+		return nil, fmt.Errorf("not an INDmoney US holdings report")
+	}
+	out := &models.InvestmentSnapshot{Provider: "INDmoney", Currency: "USD", Sheets: sheets, Holdings: []models.InvestmentHolding{}, Warnings: []string{
+		"This statement provides average acquisition prices and holding costs in USD. Market prices, current value, and returns are not provided. No currency conversion is applied.",
+	}}
+	seen := map[string]bool{}
+	for _, sheet := range sheets {
+		header := -1
+		var cols map[string]int
+		for i, row := range sheet.Rows {
+			switch cell(row, 0) {
+			case "Broker Account":
+				ref := cell(row, 1)
+				if out.AccountRef != "" && out.AccountRef != ref {
+					return nil, fmt.Errorf("inconsistent broker accounts")
+				}
+				out.AccountRef = ref
+			case "Holdings as on":
+				date := cell(row, 1)
+				if _, err := time.Parse("2006-01-02", date); err != nil {
+					return nil, fmt.Errorf("invalid holdings date")
+				}
+				if out.AsOf != "" && out.AsOf != date {
+					return nil, fmt.Errorf("inconsistent holdings dates")
+				}
+				out.AsOf = date
+			}
+			if indmoneyHeader(row) {
+				if header >= 0 {
+					return nil, fmt.Errorf("multiple holdings tables in one worksheet")
+				}
+				header, cols = i, columns(row)
+			}
+		}
+		if header < 0 {
+			continue
+		}
+		for i, row := range sheet.Rows[header+1:] {
+			if strings.HasPrefix(strings.ToLower(cell(row, 0)), "disclaimer") {
+				break
+			}
+			if len(columns(row)) == 0 {
+				continue
+			}
+			h := models.InvestmentHolding{Symbol: cell(row, cols["Stock Symbol"]), AssetClass: "US Stock", Fields: map[string]string{}}
+			if h.Symbol == "" {
+				return nil, fmt.Errorf("missing stock symbol in %s row %d", sheet.Name, header+i+2)
+			}
+			key := strings.ToUpper(h.Symbol)
+			if seen[key] {
+				return nil, fmt.Errorf("duplicate holding %s", h.Symbol)
+			}
+			seen[key] = true
+			for name, c := range cols {
+				h.Fields[name] = cell(row, c)
+			}
+			for name, target := range map[string]*float64{"Quantity": &h.Quantity, "Avg. Price ($)": &h.AveragePrice, "Total Value ($)": &h.InvestedValue} {
+				n, err := number(h.Fields[name])
+				if err != nil || n < 0 {
+					return nil, fmt.Errorf("invalid %s for %s", name, h.Symbol)
+				}
+				*target = n
+			}
+			// Verify the reported total is acquisition cost; never relabel it as market value.
+			cost := h.Quantity * h.AveragePrice
+			if math.IsInf(cost, 0) || math.Abs(cost-h.InvestedValue) > 0.01 {
+				return nil, fmt.Errorf("holding cost does not reconcile for %s", h.Symbol)
+			}
+			out.InvestedValue += h.InvestedValue
+			if math.IsInf(out.InvestedValue, 0) {
+				return nil, fmt.Errorf("invalid portfolio cost total")
+			}
+			out.Holdings = append(out.Holdings, h)
+		}
+	}
+	if out.AccountRef == "" || out.AsOf == "" || len(out.Holdings) == 0 {
+		return nil, fmt.Errorf("missing account, date, or holdings")
+	}
+	return out, nil
+}

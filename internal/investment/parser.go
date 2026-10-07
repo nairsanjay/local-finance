@@ -62,5 +62,6 @@ func (r *Registry) Parse(filename string, data []byte) (*models.InvestmentSnapsh
 var DefaultRegistry = func() *Registry {
 	r := NewRegistry()
 	r.Register(ZerodhaHoldingsParser{})
+	r.Register(INDmoneyHoldingsParser{})
 	return r
 }()

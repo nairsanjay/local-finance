@@ -52,7 +52,7 @@ export function InvestmentStatementUploader() {
     try { for (const item of queue.filter(item => item.status === 'ready')) await save(item) } finally { setBusy(false) }
   }
   const ready = queue.filter(item => item.status === 'ready').length
-  const money = (value: number, currency: string) => isPrivacyMode ? '••••••' : new Intl.NumberFormat('en-IN', { style: 'currency', currency, maximumFractionDigits: 2 }).format(value)
+  const money = (value: number | null, currency: string) => value === null ? 'Not provided' : isPrivacyMode ? '••••••' : new Intl.NumberFormat('en-IN', { style: 'currency', currency, maximumFractionDigits: 2 }).format(value)
 
   return <div className="space-y-6">
     <Card><CardHeader><CardTitle className="flex items-center gap-2"><UploadCloud className="h-4 w-4" />Import investment statements</CardTitle></CardHeader><CardContent className="space-y-4">
@@ -79,7 +79,8 @@ export function InvestmentStatementUploader() {
       <p>{active.provider} · {maskValue(active.account_ref)} · Values as of {active.as_of}</p>
       <div className="grid sm:grid-cols-3 gap-3"><p>Invested: {money(active.invested_value, active.currency)}</p><p>Current: {money(active.current_value, active.currency)}</p><p>Unrealized return: {money(active.unrealized_return, active.currency)}</p></div>
       <p className="text-xs text-muted-foreground">Preview only. Nothing is saved until you import.</p>
-      <Table><TableHeader><TableRow>{['Holding', 'Asset class', 'Quantity', 'Invested', 'Current', 'Return'].map(label => <TableHead key={label}>{label}</TableHead>)}</TableRow></TableHeader><TableBody>{active.holdings.map(holding => <TableRow key={holding.isin}><TableCell>{holding.symbol}<div className="text-xs text-muted-foreground">{holding.isin}</div></TableCell><TableCell>{holding.asset_class}</TableCell><TableCell>{maskValue(holding.quantity)}</TableCell><TableCell>{money(holding.invested_value,active.currency)}</TableCell><TableCell>{money(holding.current_value,active.currency)}</TableCell><TableCell>{money(holding.unrealized_return,active.currency)}</TableCell></TableRow>)}</TableBody></Table>
+      {active.warnings.map(warning => <p key={warning} role="status" className="text-sm">{warning}</p>)}
+      <Table><TableHeader><TableRow>{['Holding', 'Asset class', 'Quantity', 'Invested', 'Current', 'Return'].map(label => <TableHead key={label}>{label}</TableHead>)}</TableRow></TableHeader><TableBody>{active.holdings.map(holding => <TableRow key={holding.isin || holding.symbol}><TableCell>{holding.symbol}<div className="text-xs text-muted-foreground">{holding.isin}</div></TableCell><TableCell>{holding.asset_class}</TableCell><TableCell>{maskValue(holding.quantity)}</TableCell><TableCell>{money(holding.invested_value,active.currency)}</TableCell><TableCell>{money(holding.current_value,active.currency)}</TableCell><TableCell>{money(holding.unrealized_return,active.currency)}</TableCell></TableRow>)}</TableBody></Table>
     </div>}</DialogContent></Dialog>
   </div>
 }

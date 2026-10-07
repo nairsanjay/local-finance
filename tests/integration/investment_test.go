@@ -7,6 +7,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/xuri/excelize/v2"
@@ -81,7 +82,7 @@ func TestInvestmentImportIsolationAndHistory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if duplicate || snapshot.Provider != "Zerodha" || len(snapshot.Holdings) != 2 || len(snapshot.Sheets) != 2 || snapshot.InvestedValue != 800 || snapshot.CurrentValue != 900 || snapshot.UnrealizedReturn != 100 || snapshot.ReturnPercent == nil || *snapshot.ReturnPercent != 12.5 {
+	if duplicate || snapshot.Provider != "Zerodha" || len(snapshot.Holdings) != 2 || len(snapshot.Sheets) != 2 || snapshot.InvestedValue != 800 || snapshot.CurrentValue == nil || *snapshot.CurrentValue != 900 || snapshot.UnrealizedReturn == nil || *snapshot.UnrealizedReturn != 100 || snapshot.ReturnPercent == nil || *snapshot.ReturnPercent != 12.5 {
 		t.Fatalf("incorrect portfolio: %+v", snapshot)
 	}
 	if snapshot.Holdings[0].Quantity != 3 || snapshot.Holdings[0].Fields["Quantity Long Term"] != "1" {
@@ -102,7 +103,7 @@ func TestInvestmentImportIsolationAndHistory(t *testing.T) {
 		t.Fatal(err)
 	}
 	list, err := database.ListInvestmentSnapshots()
-	if err != nil || len(list) != 2 || list[0].AsOf != "2026-04-02" || list[0].CurrentValue != 900 {
+	if err != nil || len(list) != 2 || list[0].AsOf != "2026-04-02" || list[0].CurrentValue == nil || *list[0].CurrentValue != 900 {
 		t.Fatalf("snapshot history incorrect: %+v %v", list, err)
 	}
 	analytics, err := database.GetAnalyticsOverview()
@@ -161,10 +162,14 @@ func TestInvestmentParserRejectsInvalidWorkbooks(t *testing.T) {
 func TestInvestmentAPI(t *testing.T) {
 	database := testDatabase(t)
 	router := api.SetupRouter(database, service.NewTransactionService(database), nil)
-	upload := func(path string, data []byte) *httptest.ResponseRecorder {
+	upload := func(path string, data []byte, filenames ...string) *httptest.ResponseRecorder {
 		var body bytes.Buffer
 		writer := multipart.NewWriter(&body)
-		part, err := writer.CreateFormFile("file", "fictional.xlsx")
+		filename := "fictional.xlsx"
+		if len(filenames) > 0 {
+			filename = filenames[0]
+		}
+		part, err := writer.CreateFormFile("file", filename)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -184,7 +189,7 @@ func TestInvestmentAPI(t *testing.T) {
 		Parsers []investment.ParserInfo `json:"parsers"`
 		MaxSize int                     `json:"max_file_size"`
 	}
-	if err := json.Unmarshal(w.Body.Bytes(), &formats); err != nil || w.Code != 200 || len(formats.Parsers) != 1 || formats.Parsers[0].Extensions[0] != ".xlsx" || formats.MaxSize != service.MaxInvestmentFileSize {
+	if err := json.Unmarshal(w.Body.Bytes(), &formats); err != nil || w.Code != 200 || len(formats.Parsers) != 2 || formats.Parsers[0].Extensions[0] != ".xlsx" || formats.Parsers[1].Provider != "INDmoney" || formats.Parsers[1].Extensions[0] != ".xls" || formats.MaxSize != service.MaxInvestmentFileSize {
 		t.Fatal("invalid format discovery", err)
 	}
 	w = upload("/api/investments/preview", investmentWorkbook(t, nil))
@@ -205,6 +210,38 @@ func TestInvestmentAPI(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
 		t.Fatal(err)
 	}
+	usData, err := os.ReadFile("../../internal/investment/testdata/indmoney-fictional.xls")
+	if err != nil {
+		t.Fatal(err)
+	}
+	w = upload("/api/investments/preview", usData, "renamed.xls")
+	if w.Code != 200 {
+		t.Fatal("US preview failed", w.Body.String())
+	}
+	var usSnapshot models.InvestmentSnapshot
+	if err := json.Unmarshal(w.Body.Bytes(), &usSnapshot); err != nil || usSnapshot.Currency != "USD" || usSnapshot.CurrentValue != nil || usSnapshot.Holdings[0].Quantity != 0.123456789 {
+		t.Fatal("US preview fabricated valuation or lost precision", err)
+	}
+	list, err = database.ListInvestmentSnapshots()
+	if err != nil || len(list) != 1 {
+		t.Fatal("US preview persisted data", err)
+	}
+	w = upload("/api/investments/import", usData, "renamed.xls")
+	if w.Code != 200 {
+		t.Fatal("US import failed", w.Body.String())
+	}
+	w = upload("/api/investments/import", usData, "renamed-again.xls")
+	var usResult struct {
+		Snapshot  models.InvestmentSnapshot `json:"snapshot"`
+		Duplicate bool                      `json:"duplicate"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &usResult); err != nil || !usResult.Duplicate || usResult.Snapshot.Provider != "INDmoney" || usResult.Snapshot.UnrealizedReturn != nil {
+		t.Fatal("US import not idempotent or changed valuation", err)
+	}
+	analytics, err := database.GetAnalyticsOverview()
+	if err != nil || analytics.TotalTransactions != 0 || analytics.TotalIncome != 0 || analytics.TotalExpense != 0 {
+		t.Fatal("US holdings changed bank ledger", err)
+	}
 	w = upload("/api/investments/import", []byte("invalid"))
 	if w.Code != 400 {
 		t.Fatal("bad upload should return 400")
@@ -213,6 +250,15 @@ func TestInvestmentAPI(t *testing.T) {
 	router.ServeHTTP(w, httptest.NewRequest(http.MethodDelete, "/api/investments/"+result.Snapshot.ID, nil))
 	if w.Code != 204 {
 		t.Fatal(w.Code)
+	}
+	list, err = database.ListInvestmentSnapshots()
+	if err != nil || len(list) != 1 || list[0].Provider != "INDmoney" || list[0].CurrentValue != nil {
+		t.Fatal("deletion changed another provider snapshot", err)
+	}
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodDelete, "/api/investments/"+usResult.Snapshot.ID, nil))
+	if w.Code != 204 {
+		t.Fatal("US deletion failed", w.Code)
 	}
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/investments", nil))
