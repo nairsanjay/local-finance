@@ -82,7 +82,7 @@ func TestInvestmentImportIsolationAndHistory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if duplicate || snapshot.Provider != "Zerodha" || len(snapshot.Holdings) != 2 || len(snapshot.Sheets) != 2 || snapshot.InvestedValue != 800 || snapshot.CurrentValue == nil || *snapshot.CurrentValue != 900 || snapshot.UnrealizedReturn == nil || *snapshot.UnrealizedReturn != 100 || snapshot.ReturnPercent == nil || *snapshot.ReturnPercent != 12.5 {
+	if duplicate || snapshot.Provider != "Zerodha" || len(snapshot.Holdings) != 2 || len(snapshot.Sheets) != 2 || snapshot.InvestedValue == nil || *snapshot.InvestedValue != 800 || snapshot.CurrentValue == nil || *snapshot.CurrentValue != 900 || snapshot.UnrealizedReturn == nil || *snapshot.UnrealizedReturn != 100 || snapshot.ReturnPercent == nil || *snapshot.ReturnPercent != 12.5 {
 		t.Fatalf("incorrect portfolio: %+v", snapshot)
 	}
 	if snapshot.Holdings[0].Quantity != 3 || snapshot.Holdings[0].Fields["Quantity Long Term"] != "1" {
@@ -219,7 +219,7 @@ func TestInvestmentAPI(t *testing.T) {
 		t.Fatal("US preview failed", w.Body.String())
 	}
 	var usSnapshot models.InvestmentSnapshot
-	if err := json.Unmarshal(w.Body.Bytes(), &usSnapshot); err != nil || usSnapshot.Currency != "USD" || usSnapshot.CurrentValue != nil || usSnapshot.Holdings[0].Quantity != 0.123456789 {
+	if err := json.Unmarshal(w.Body.Bytes(), &usSnapshot); err != nil || usSnapshot.Currency != "USD" || usSnapshot.InvestedValue != nil || usSnapshot.CurrentValue == nil || usSnapshot.Holdings[0].Quantity != 0.123456789 {
 		t.Fatal("US preview fabricated valuation or lost precision", err)
 	}
 	list, err = database.ListInvestmentSnapshots()
@@ -252,7 +252,7 @@ func TestInvestmentAPI(t *testing.T) {
 		t.Fatal(w.Code)
 	}
 	list, err = database.ListInvestmentSnapshots()
-	if err != nil || len(list) != 1 || list[0].Provider != "INDmoney" || list[0].CurrentValue != nil {
+	if err != nil || len(list) != 1 || list[0].Provider != "INDmoney" || list[0].InvestedValue != nil || list[0].CurrentValue == nil {
 		t.Fatal("deletion changed another provider snapshot", err)
 	}
 	w = httptest.NewRecorder()

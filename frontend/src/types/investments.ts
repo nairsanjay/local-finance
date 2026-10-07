@@ -3,9 +3,9 @@ export interface InvestmentHolding {
   isin: string
   asset_class: string
   quantity: number
-  average_price: number
+  average_price: number | null
   closing_price: number | null
-  invested_value: number
+  invested_value: number | null
   current_value: number | null
   unrealized_return: number | null
   return_percent: number | null
@@ -26,7 +26,7 @@ export interface InvestmentSnapshot {
   currency: string
   filename: string
   imported_at: string
-  invested_value: number
+  invested_value: number | null
   current_value: number | null
   unrealized_return: number | null
   return_percent: number | null

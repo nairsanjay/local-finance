@@ -68,7 +68,7 @@ func readLegacyInvestmentSheets(data []byte) (sheets []models.InvestmentSheet, e
 
 // Read raw numeric BIFF cells. The legacy library treats every custom format as
 // a date and fails to apply RK's divide-by-100 flag to integers. Neither formatted
-// strings nor Excel date guesses are appropriate for acquisition costs/quantities.
+// strings nor Excel date guesses are appropriate for holding values/quantities.
 func legacyNumericCells(data []byte) ([]map[[2]int]string, error) {
 	ole, err := ole2.Open(bytes.NewReader(data), "utf-8")
 	if err != nil {

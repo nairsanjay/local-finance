@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { InvestmentTotals } from './InvestmentTotals'
 
 export function InvestmentsView() {
   const client = useQueryClient()
@@ -40,6 +41,7 @@ export function InvestmentsView() {
   return <div className="space-y-6">
     <div><h1 className="text-2xl font-semibold flex items-center gap-2"><TrendingUp className="h-6 w-6" />Investments</h1>
       <p className="text-sm text-muted-foreground mt-1">Dated portfolio holdings and unrealized returns. Kept separate from income and expense totals.</p></div>
+    <InvestmentTotals snapshots={query.data ?? []} />
     <Link to="/import" search={{ tab: 'investments' }} className="inline-flex rounded-lg border px-3 py-2 text-sm font-medium">Import investment statements</Link>
     {error && <p role="alert" className="text-sm text-destructive">{error.message}</p>}
     {message && <p role="status" className="text-sm">{message}</p>}
@@ -65,7 +67,7 @@ export function InvestmentsView() {
       <Card><CardHeader><CardTitle>Holdings ({holdings.length})</CardTitle><div className="flex flex-wrap gap-3 pt-2">
         <Input className="sm:max-w-xs" placeholder="Search symbol or ISIN" aria-label="Search holdings" value={search} onChange={e => setSearch(e.target.value)} />
         <Select value={asset} onValueChange={value => setAsset(value ?? 'ALL')}><SelectTrigger className="w-[180px]" aria-label="Asset class"><SelectValue>{asset === 'ALL' ? 'All asset classes' : asset}</SelectValue></SelectTrigger><SelectContent><SelectItem value="ALL">All asset classes</SelectItem>{[...new Set(snapshot.holdings.map(h => h.asset_class))].map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}</SelectContent></Select>
-      </div></CardHeader><CardContent><Table><TableHeader><TableRow>{['Holding', 'Quantity', 'Average price', 'Closing price', 'Invested', 'Current value', 'Unrealized return', 'Return %'].map(h => <TableHead key={h} className="whitespace-nowrap">{h}</TableHead>)}</TableRow></TableHeader>
+      </div></CardHeader><CardContent><Table><TableHeader><TableRow>{['Holding', 'Quantity', 'Average cost price', 'Statement price', 'Invested', 'Current value', 'Unrealized return', 'Return %'].map(h => <TableHead key={h} className="whitespace-nowrap">{h}</TableHead>)}</TableRow></TableHeader>
         <TableBody>{holdings.map(h => <TableRow key={h.isin || h.symbol}><TableCell className="min-w-[220px]"><div className="font-medium">{h.symbol}</div><div className="text-xs text-muted-foreground">{h.isin ? `${h.isin} · ` : ''}{h.asset_class}</div></TableCell>
           <TableCell>{maskValue(h.quantity.toLocaleString('en-IN', { maximumFractionDigits: 9 }))}</TableCell><TableCell>{price(h.average_price)}</TableCell><TableCell>{price(h.closing_price)}</TableCell><TableCell>{money(h.invested_value)}</TableCell><TableCell>{money(h.current_value)}</TableCell><TableCell className={h.unrealized_return !== null && h.unrealized_return < 0 ? 'text-destructive' : ''}>{money(h.unrealized_return)}</TableCell><TableCell>{percent(h.return_percent)}</TableCell></TableRow>)}
           {!holdings.length && <TableRow><TableCell colSpan={8} className="text-center">No holdings match your filters.</TableCell></TableRow>}

@@ -10,7 +10,7 @@ import (
 	"local-finance/internal/models"
 )
 
-// INDmoney's US holdings export contains acquisition costs, not market quotes.
+// INDmoney's US holdings export reports current values, without acquisition costs.
 type INDmoneyHoldingsParser struct{}
 
 func (INDmoneyHoldingsParser) ID() string { return "indmoney_us_holdings_xls_v1" }
@@ -74,8 +74,9 @@ func parseINDmoneyHoldings(sheets []models.InvestmentSheet) (*models.InvestmentS
 		return nil, fmt.Errorf("not an INDmoney US holdings report")
 	}
 	out := &models.InvestmentSnapshot{Provider: "INDmoney", Currency: "USD", Sheets: sheets, Holdings: []models.InvestmentHolding{}, Warnings: []string{
-		"This statement provides average acquisition prices and holding costs in USD. Market prices, current value, and returns are not provided. No currency conversion is applied.",
+		"This statement provides current holding values in USD. Acquisition costs are not provided, so invested amount and returns are unavailable. No currency conversion is applied.",
 	}}
+	out.CurrentValue = new(float64)
 	seen := map[string]bool{}
 	for _, sheet := range sheets {
 		header := -1
@@ -127,21 +128,22 @@ func parseINDmoneyHoldings(sheets []models.InvestmentSheet) (*models.InvestmentS
 			for name, c := range cols {
 				h.Fields[name] = cell(row, c)
 			}
-			for name, target := range map[string]*float64{"Quantity": &h.Quantity, "Avg. Price ($)": &h.AveragePrice, "Total Value ($)": &h.InvestedValue} {
+			h.CurrentValue = new(float64)
+			h.ClosingPrice = new(float64)
+			for name, target := range map[string]*float64{"Quantity": &h.Quantity, "Avg. Price ($)": h.ClosingPrice, "Total Value ($)": h.CurrentValue} {
 				n, err := number(h.Fields[name])
 				if err != nil || n < 0 {
 					return nil, fmt.Errorf("invalid %s for %s", name, h.Symbol)
 				}
 				*target = n
 			}
-			// Verify the reported total is acquisition cost; never relabel it as market value.
-			cost := h.Quantity * h.AveragePrice
-			if math.IsInf(cost, 0) || math.Abs(cost-h.InvestedValue) > 0.01 {
-				return nil, fmt.Errorf("holding cost does not reconcile for %s", h.Symbol)
+			value := h.Quantity * *h.ClosingPrice
+			if math.IsInf(value, 0) || math.Abs(value-*h.CurrentValue) > 0.01 {
+				return nil, fmt.Errorf("holding value does not reconcile for %s", h.Symbol)
 			}
-			out.InvestedValue += h.InvestedValue
-			if math.IsInf(out.InvestedValue, 0) {
-				return nil, fmt.Errorf("invalid portfolio cost total")
+			*out.CurrentValue += *h.CurrentValue
+			if math.IsInf(*out.CurrentValue, 0) {
+				return nil, fmt.Errorf("invalid portfolio value total")
 			}
 			out.Holdings = append(out.Holdings, h)
 		}

@@ -20,27 +20,30 @@ func indmoneySheets() []models.InvestmentSheet {
 	}}}
 }
 
-func TestINDmoneyCostsAndUnavailableValuation(t *testing.T) {
+func TestINDmoneyCurrentValuationAndUnavailableCost(t *testing.T) {
 	sheets := indmoneySheets()
 	snapshot, err := parseINDmoneyHoldings(sheets)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if snapshot.Provider != "INDmoney" || snapshot.Currency != "USD" || snapshot.AccountRef != "DEMO-US-01" || snapshot.AsOf != "2026-04-01" || len(snapshot.Holdings) != 2 || math.Abs(snapshot.InvestedValue-62.345679) > 1e-9 {
+	if snapshot.Provider != "INDmoney" || snapshot.Currency != "USD" || snapshot.AccountRef != "DEMO-US-01" || snapshot.AsOf != "2026-04-01" || len(snapshot.Holdings) != 2 || snapshot.CurrentValue == nil || math.Abs(*snapshot.CurrentValue-62.345679) > 1e-9 {
 		t.Fatalf("unexpected portfolio: %+v", snapshot)
 	}
 	h := snapshot.Holdings[0]
 	if h.Quantity != 0.123456789 || h.Fields["Holding Since"] != "01 Mar 2026, 10:30 AM" || h.ISIN != "" {
 		t.Fatalf("source precision or fields lost: %+v", h)
 	}
-	if snapshot.CurrentValue != nil || snapshot.UnrealizedReturn != nil || snapshot.ReturnPercent != nil || h.ClosingPrice != nil || h.CurrentValue != nil || h.UnrealizedReturn != nil || h.ReturnPercent != nil {
-		t.Fatal("missing market values fabricated")
+	if snapshot.InvestedValue != nil || snapshot.UnrealizedReturn != nil || snapshot.ReturnPercent != nil || h.AveragePrice != nil || h.InvestedValue != nil || h.UnrealizedReturn != nil || h.ReturnPercent != nil {
+		t.Fatal("missing acquisition costs or returns fabricated")
+	}
+	if h.ClosingPrice == nil || *h.ClosingPrice != 100 || h.CurrentValue == nil || *h.CurrentValue != 12.345679 {
+		t.Fatal("statement valuation lost")
 	}
 	data, err := json.Marshal(snapshot)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, expected := range []string{`"current_value":null`, `"closing_price":null`, `"unrealized_return":null`, `"return_percent":null`, `"rows":[`} {
+	for _, expected := range []string{`"invested_value":null`, `"average_price":null`, `"unrealized_return":null`, `"return_percent":null`, `"rows":[`} {
 		if !strings.Contains(string(data), expected) {
 			t.Fatalf("missing JSON %s", expected)
 		}
@@ -111,7 +114,7 @@ func TestINDmoneyLegacyWorkbook(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if snapshot.ParserID != p.ID() || len(snapshot.Holdings) != 2 || len(snapshot.Sheets) != 2 || snapshot.Holdings[0].Quantity != 0.123456789 || snapshot.CurrentValue != nil {
+	if snapshot.ParserID != p.ID() || len(snapshot.Holdings) != 2 || len(snapshot.Sheets) != 2 || snapshot.Holdings[0].Quantity != 0.123456789 || snapshot.InvestedValue != nil || snapshot.CurrentValue == nil {
 		t.Fatalf("bad legacy workbook: %+v", snapshot)
 	}
 	if len(snapshot.Sheets[0].Rows[4]) != 0 || snapshot.Sheets[1].Rows[0][0] != "Fictional test data only" {

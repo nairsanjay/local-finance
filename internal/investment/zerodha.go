@@ -95,7 +95,7 @@ func (ZerodhaHoldingsParser) Parse(data []byte) (*models.InvestmentSnapshot, err
 	}
 	defer f.Close()
 	out := &models.InvestmentSnapshot{Provider: "Zerodha", Currency: "INR", Holdings: []models.InvestmentHolding{}, Sheets: []models.InvestmentSheet{}, Warnings: []string{}}
-	out.CurrentValue, out.UnrealizedReturn = new(float64), new(float64)
+	out.InvestedValue, out.CurrentValue, out.UnrealizedReturn = new(float64), new(float64), new(float64)
 	// Prefer the consolidated sheet. Asset-specific sheets repeat these holdings.
 	combined := false
 	for _, name := range f.GetSheetList() {
@@ -186,7 +186,9 @@ func (ZerodhaHoldingsParser) Parse(data []byte) (*models.InvestmentSnapshot, err
 				h.Fields[key] = cell(row, col)
 			}
 			h.ClosingPrice, h.CurrentValue, h.UnrealizedReturn = new(float64), new(float64), new(float64)
-			values := map[string]*float64{"Quantity Available": &h.Quantity, "Average Price": &h.AveragePrice, "Previous Closing Price": h.ClosingPrice, "Unrealized P&L": h.UnrealizedReturn}
+			h.InvestedValue = new(float64)
+			h.AveragePrice = new(float64)
+			values := map[string]*float64{"Quantity Available": &h.Quantity, "Average Price": h.AveragePrice, "Previous Closing Price": h.ClosingPrice, "Unrealized P&L": h.UnrealizedReturn}
 			for key, target := range values {
 				n, err := number(h.Fields[key])
 				if err != nil {
@@ -203,7 +205,7 @@ func (ZerodhaHoldingsParser) Parse(data []byte) (*models.InvestmentSnapshot, err
 					h.Quantity += n
 				}
 			}
-			if h.Quantity < 0 || h.AveragePrice < 0 || *h.ClosingPrice < 0 {
+			if h.Quantity < 0 || *h.AveragePrice < 0 || *h.ClosingPrice < 0 {
 				return nil, fmt.Errorf("negative holding quantity or price")
 			}
 			if strings.EqualFold(name, "Mutual Funds") || h.Fields["Instrument Type"] != "" && h.Fields["Instrument Type"] != "-" {
@@ -211,13 +213,13 @@ func (ZerodhaHoldingsParser) Parse(data []byte) (*models.InvestmentSnapshot, err
 			}
 			*h.CurrentValue = h.Quantity * *h.ClosingPrice
 			// Reported P&L retains cost precision lost in the rounded average price.
-			h.InvestedValue = *h.CurrentValue - *h.UnrealizedReturn
-			if h.InvestedValue < 0 {
+			*h.InvestedValue = *h.CurrentValue - *h.UnrealizedReturn
+			if *h.InvestedValue < 0 {
 				return nil, fmt.Errorf("invalid negative cost basis for %s", symbol)
 			}
-			h.ReturnPercent = models.InvestmentReturnPercent(h.InvestedValue, *h.UnrealizedReturn)
+			h.ReturnPercent = models.InvestmentReturnPercent(*h.InvestedValue, *h.UnrealizedReturn)
 			out.Holdings = append(out.Holdings, h)
-			out.InvestedValue += h.InvestedValue
+			*out.InvestedValue += *h.InvestedValue
 			*out.CurrentValue += *h.CurrentValue
 			*out.UnrealizedReturn += *h.UnrealizedReturn
 		}
@@ -225,9 +227,9 @@ func (ZerodhaHoldingsParser) Parse(data []byte) (*models.InvestmentSnapshot, err
 	if out.AccountRef == "" || out.AsOf == "" || len(out.Holdings) == 0 {
 		return nil, fmt.Errorf("missing account, valuation date, or holdings")
 	}
-	if reportedCost != nil && math.Abs(*reportedCost-out.InvestedValue) > 1 || reportedValue != nil && math.Abs(*reportedValue-*out.CurrentValue) > 1 {
+	if reportedCost != nil && math.Abs(*reportedCost-*out.InvestedValue) > 1 || reportedValue != nil && math.Abs(*reportedValue-*out.CurrentValue) > 1 {
 		return nil, fmt.Errorf("holdings do not reconcile with statement totals")
 	}
-	out.ReturnPercent = models.InvestmentReturnPercent(out.InvestedValue, *out.UnrealizedReturn)
+	out.ReturnPercent = models.InvestmentReturnPercent(*out.InvestedValue, *out.UnrealizedReturn)
 	return out, nil
 }

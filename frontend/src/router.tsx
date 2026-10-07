@@ -37,6 +37,7 @@ import { WhatsNewView } from '@/components/whatsnew/WhatsNewView'
 import { WrappedView } from '@/components/wrapped/WrappedView'
 import { SalaryView } from '@/components/salary/SalaryView'
 import { InvestmentsView } from '@/components/investments/InvestmentsView'
+import { InvestmentTotals } from '@/components/investments/InvestmentTotals'
 import { PrivacyProvider } from '@/components/privacy-provider'
 import { PrivacyToggle } from '@/components/layout/PrivacyToggle'
 import { UpdateIndicator } from '@/components/updates/UpdateIndicator'
@@ -51,7 +52,7 @@ import type {
   SettingsSearchParams,
   SalarySearchParams,
 } from '@/types'
-import { fetchAccounts, fetchAnalytics, fetchCreditCardBills } from '@/lib/api'
+import { fetchAccounts, fetchAnalytics, fetchCreditCardBills, fetchInvestments } from '@/lib/api'
 import { formatINR } from '@/lib/utils'
 import {
   Wallet,
@@ -175,6 +176,7 @@ const rootRoute = createRootRoute({
 
 // Overview Dashboard Page
 const DashboardPage: React.FC = () => {
+  const investments = useQuery({ queryKey: ['investments'], queryFn: fetchInvestments })
   const { data: analytics, isLoading } = useQuery({
     queryKey: ['analytics'],
     queryFn: fetchAnalytics,
@@ -254,6 +256,8 @@ const DashboardPage: React.FC = () => {
         </Card>
       )}
 
+      {investments.error && <p role="alert" className="text-sm text-destructive">Investment totals could not be loaded: {investments.error.message}</p>}
+      <InvestmentTotals snapshots={investments.data ?? []} />
       <MonthlyReview compact />
 
       {/* KPI Overview Cards */}

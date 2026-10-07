@@ -12,7 +12,7 @@ type InvestmentSnapshot struct {
 	Currency         string              `json:"currency"`
 	Filename         string              `json:"filename"`
 	ImportedAt       string              `json:"imported_at"`
-	InvestedValue    float64             `json:"invested_value"`
+	InvestedValue    *float64            `json:"invested_value"`
 	CurrentValue     *float64            `json:"current_value"`
 	UnrealizedReturn *float64            `json:"unrealized_return"`
 	ReturnPercent    *float64            `json:"return_percent"`
@@ -26,9 +26,9 @@ type InvestmentHolding struct {
 	ISIN             string            `json:"isin"`
 	AssetClass       string            `json:"asset_class"`
 	Quantity         float64           `json:"quantity"`
-	AveragePrice     float64           `json:"average_price"`
+	AveragePrice     *float64          `json:"average_price"`
 	ClosingPrice     *float64          `json:"closing_price"`
-	InvestedValue    float64           `json:"invested_value"`
+	InvestedValue    *float64          `json:"invested_value"`
 	CurrentValue     *float64          `json:"current_value"`
 	UnrealizedReturn *float64          `json:"unrealized_return"`
 	ReturnPercent    *float64          `json:"return_percent"`
