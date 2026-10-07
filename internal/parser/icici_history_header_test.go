@@ -2,9 +2,11 @@ package parser
 
 import (
 	"bytes"
+	"encoding/json"
 	"slices"
 	"testing"
 
+	"github.com/jung-kurt/gofpdf"
 	"local-finance/internal/models"
 	"local-finance/internal/parser/extractor"
 )
@@ -75,9 +77,6 @@ func TestICICIHistoryRightAlignedSmallAmounts(t *testing.T) {
 	rows := syntheticICICIHistoryHeaderRows()
 	// Synthetic shaded financial cells center their labels while tiny amounts
 	// sit at the right edge, beyond the old left-heading midpoint.
-	rows[1].Elements[1].CellCenterX = 423
-	rows[1].Elements[2].CellCenterX = 489
-	rows[1].Elements[3].CellCenterX = 548
 	rows[0].Elements[0].S += " for the period October 8, 2025 - October 7, 2026"
 	rows[4].Elements[1].S = "11.10.2025"
 	rows[4].Elements[3] = extractor.PositionalElement{X: 438, S: "1.00"}
@@ -85,29 +84,62 @@ func TestICICIHistoryRightAlignedSmallAmounts(t *testing.T) {
 	rows[5].Elements[1].S = "01.10.2026"
 	rows[5].Elements[3] = extractor.PositionalElement{X: 502, S: "1.00"}
 	rows[5].Elements[4] = extractor.PositionalElement{X: 539, S: "1000.00"}
-	tx, meta, err := parseBankHistoryRows(coalesceICICIHistoryHeaders(rows), iciciSavingsProfile)
+	data := syntheticICICIHistoryCellPDF(t, rows)
+	tx, meta, err := (&ICICISavingsPDFParser{}).Parse(bytes.NewReader(data), ParseOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(tx) != 2 || tx[0].TxType != models.TxTypeDebit || tx[1].TxType != models.TxTypeCredit || meta.TotalDebits != 1 || meta.TotalCredits != 1 || meta.OpeningBalance != 1000 || meta.ClosingBalance != 1000 || meta.StartDate != "2025-10-08" || meta.EndDate != "2026-10-07" {
 		t.Fatalf("small amounts or annual period misread: %+v %+v", tx, meta)
 	}
-	// Exercise the PDF extractor too: centers must come from actual rectangles,
-	// even when the text library reports no usable heading widths.
-	data := syntheticBaselinePDFWithFontSize(t, rows, 4)
 	extracted, err := extractor.ExtractPDFPositionalRows(bytes.NewReader(data), "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	actual, _, err := parseBankHistoryRows(coalesceICICIHistoryHeaders(extracted), iciciSavingsProfile)
-	if err != nil || len(actual) != 2 || actual[0].TxType != models.TxTypeDebit || actual[1].TxType != models.TxTypeCredit {
-		t.Fatalf("printed cells misread: %+v %v", actual, err)
+	if extracted[1].Elements[1].X != 399 {
+		t.Fatal("shared PDF extractor changed the heading coordinates")
 	}
-	if rows[1].Elements[1].X != 399 {
+	original := slices.Clone(extracted[1].Elements)
+	if err := alignICICIHistoryFinancialHeaders(extracted, data); err != nil {
+		t.Fatal(err)
+	}
+	if original[1].X != 399 || extracted[1].Elements[1].X != 423 {
 		t.Fatal("normalization mutated source rows")
 	}
 	rows[5].Elements[4].S = "1001.00"
-	if _, _, err := parseBankHistoryRows(coalesceICICIHistoryHeaders(rows), iciciSavingsProfile); err == nil {
+	if _, _, err := (&ICICISavingsPDFParser{}).Parse(bytes.NewReader(syntheticICICIHistoryCellPDF(t, rows)), ParseOptions{}); err == nil {
 		t.Fatal("broken running balance accepted")
 	}
+}
+
+func syntheticICICIHistoryCellPDF(t *testing.T, rows []extractor.PositionalRow) []byte {
+	t.Helper()
+	document := gofpdf.NewCustom(&gofpdf.InitType{UnitStr: "pt", Size: gofpdf.SizeType{Wd: 800, Ht: 650}})
+	widths := make([]int, 256)
+	for index := range widths {
+		widths[index] = 600
+	}
+	font, err := json.Marshal(map[string]any{
+		"Tp": "Type1", "Name": "Courier", "Cw": widths, "Enc": "cp1252", "Up": -100, "Ut": 50,
+		"Desc": map[string]any{"Ascent": 629, "Descent": -157, "CapHeight": 562, "Flags": 33, "StemV": 51, "MissingWidth": 600},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	document.AddFontFromBytes("fixture", "", font, nil)
+	document.AddPage()
+	document.SetFont("fixture", "", 4)
+	for _, center := range []float64{423, 489, 548} {
+		document.Rect(center-30, 650-625-8, 60, 12, "D")
+	}
+	for _, row := range rows {
+		for _, element := range row.Elements {
+			document.Text(element.X, 650-row.Y, element.S)
+		}
+	}
+	var output bytes.Buffer
+	if err := document.Output(&output); err != nil {
+		t.Fatal(err)
+	}
+	return output.Bytes()
 }

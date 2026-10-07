@@ -1,11 +1,14 @@
 package parser
 
 import (
+	"bytes"
+	"fmt"
 	"io"
 	"regexp"
 	"slices"
 	"strings"
 
+	"github.com/dslipak/pdf"
 	"local-finance/internal/models"
 	"local-finance/internal/parser/extractor"
 )
@@ -64,11 +67,65 @@ var iciciSavingsProfile = bankHistoryProfile{
 }
 
 func (p *ICICISavingsPDFParser) Parse(r io.Reader, opts ParseOptions) ([]ParsedTransaction, StatementMeta, error) {
-	rows, err := extractor.ExtractPDFPositionalRows(r, opts.Password)
+	data, err := io.ReadAll(r)
+	if err != nil {
+		return nil, StatementMeta{}, fmt.Errorf("failed to read ICICI PDF: %w", err)
+	}
+	data, err = extractor.DecryptPDFIfNeeded(data, opts.Password)
 	if err != nil {
 		return nil, StatementMeta{}, err
 	}
+	rows, err := extractor.ExtractPDFPositionalRows(bytes.NewReader(data), "")
+	if err != nil {
+		return nil, StatementMeta{}, err
+	}
+	if err := alignICICIHistoryFinancialHeaders(rows, data); err != nil {
+		return nil, StatementMeta{}, err
+	}
 	return parseBankHistoryRows(coalesceICICIHistoryHeaders(rows), iciciSavingsProfile)
+}
+
+// ICICI history exports center headings but right-align numeric cells. Use
+// their printed header rectangles so small withdrawals stay in their column.
+func alignICICIHistoryFinancialHeaders(rows []extractor.PositionalRow, data []byte) error {
+	document, err := pdf.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		return fmt.Errorf("failed to read ICICI table geometry: %w", err)
+	}
+	for page := 1; page <= document.NumPage(); page++ {
+		rectangles := document.Page(page).Content().Rect
+		for index := range rows {
+			row := &rows[index]
+			if row.Page != page || !iciciHistoryHeadingRow(*row) {
+				continue
+			}
+			row.Elements = slices.Clone(row.Elements)
+			for elementIndex := range row.Elements {
+				element := &row.Elements[elementIndex]
+				label := strings.ToUpper(element.S)
+				if !matchesBankTerm(label, iciciSavingsProfile.debitHeaders) && !matchesBankTerm(label, iciciSavingsProfile.creditHeaders) && !matchesBankTerm(label, iciciSavingsProfile.balanceHeaders) {
+					continue
+				}
+				center, matches := 0.0, 0
+				for _, rect := range rectangles {
+					left, right := rect.Min.X, rect.Max.X
+					bottom, top := rect.Min.Y, rect.Max.Y
+					if bottom > top {
+						bottom, top = top, bottom
+					}
+					// Ignore page backgrounds and table-wide boxes. Ambiguous
+					// overlapping cells cannot supply a column position.
+					if right-left > 0 && right-left <= 220 && top-bottom > 0 && top-bottom <= 40 && element.X >= left && element.X < right && row.Y >= bottom && row.Y <= top {
+						center, matches = (left+right)/2, matches+1
+					}
+				}
+				if matches == 1 {
+					element.X = center
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // Transaction-history exports split their table title over three baselines.
@@ -95,24 +152,6 @@ func coalesceICICIHistoryHeaders(rows []extractor.PositionalRow) []extractor.Pos
 			}
 		}
 		result = append(result, row)
-	}
-	// History exports center headings but right-align numeric cells. Using the
-	// heading's left edge shifts the boundary into the withdrawal column and
-	// misclassifies short amounts (for example, 1.00) as deposits.
-	for index := range result {
-		if _, complete := discoverBankHistoryColumns(result[index], iciciSavingsProfile); !complete {
-			continue
-		}
-		result[index].Elements = slices.Clone(result[index].Elements)
-		for elementIndex := range result[index].Elements {
-			element := &result[index].Elements[elementIndex]
-			label := strings.ToUpper(element.S)
-			if matchesBankTerm(label, iciciSavingsProfile.debitHeaders) || matchesBankTerm(label, iciciSavingsProfile.creditHeaders) || matchesBankTerm(label, iciciSavingsProfile.balanceHeaders) {
-				if element.CellCenterX != 0 {
-					element.X = element.CellCenterX
-				}
-			}
-		}
 	}
 	return result
 }
