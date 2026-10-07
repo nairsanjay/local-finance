@@ -24,6 +24,8 @@ type PositionalElement struct {
 	S string
 	// EndX is the measured end of the text block; zero means unavailable.
 	EndX float64
+	// CellCenterX is a measured table-cell center, when a surrounding rectangle exists.
+	CellCenterX float64
 }
 
 // PositionalRow represents a horizontal row of text elements on a specific page
@@ -95,6 +97,24 @@ func ExtractPDFPositionalRows(r io.Reader, password string) ([]PositionalRow, er
 		flushRow := func() {
 			flushWord()
 			if len(curRow) > 0 {
+				for index := range curRow {
+					element := &curRow[index]
+					for _, rect := range content.Rect {
+						left, right := rect.Min.X, rect.Max.X
+						bottom, top := rect.Min.Y, rect.Max.Y
+						if bottom > top {
+							bottom, top = top, bottom
+						}
+						// Only small printed cells, never a page background or table-wide box.
+						if right-left > 0 && right-left <= 220 && top-bottom > 0 && top-bottom <= 40 && element.X >= left && element.X < right && curY >= bottom && curY <= top {
+							if element.CellCenterX != 0 {
+								element.CellCenterX = 0
+								break
+							}
+							element.CellCenterX = (left + right) / 2
+						}
+					}
+				}
 				allRows = append(allRows, PositionalRow{Page: pageIndex, Y: curY, Elements: curRow})
 				curRow = nil
 			}

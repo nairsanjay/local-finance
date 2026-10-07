@@ -5,6 +5,7 @@ import (
 	"slices"
 	"testing"
 
+	"local-finance/internal/models"
 	"local-finance/internal/parser/extractor"
 )
 
@@ -67,5 +68,46 @@ func TestICICIHeaderWithoutReportedFontWidths(t *testing.T) {
 	transactions, _, err := parseBankHistoryRows(coalesceICICIHistoryHeaders(rows), iciciSavingsProfile)
 	if err != nil || len(transactions) != 2 {
 		t.Fatalf("known heading coordinates require no fabricated font width: %+v, %v", transactions, err)
+	}
+}
+
+func TestICICIHistoryRightAlignedSmallAmounts(t *testing.T) {
+	rows := syntheticICICIHistoryHeaderRows()
+	// Synthetic shaded financial cells center their labels while tiny amounts
+	// sit at the right edge, beyond the old left-heading midpoint.
+	rows[1].Elements[1].CellCenterX = 423
+	rows[1].Elements[2].CellCenterX = 489
+	rows[1].Elements[3].CellCenterX = 548
+	rows[0].Elements[0].S += " for the period October 8, 2025 - October 7, 2026"
+	rows[4].Elements[1].S = "11.10.2025"
+	rows[4].Elements[3] = extractor.PositionalElement{X: 438, S: "1.00"}
+	rows[4].Elements[4] = extractor.PositionalElement{X: 539, S: "999.00"}
+	rows[5].Elements[1].S = "01.10.2026"
+	rows[5].Elements[3] = extractor.PositionalElement{X: 502, S: "1.00"}
+	rows[5].Elements[4] = extractor.PositionalElement{X: 539, S: "1000.00"}
+	tx, meta, err := parseBankHistoryRows(coalesceICICIHistoryHeaders(rows), iciciSavingsProfile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tx) != 2 || tx[0].TxType != models.TxTypeDebit || tx[1].TxType != models.TxTypeCredit || meta.TotalDebits != 1 || meta.TotalCredits != 1 || meta.OpeningBalance != 1000 || meta.ClosingBalance != 1000 || meta.StartDate != "2025-10-08" || meta.EndDate != "2026-10-07" {
+		t.Fatalf("small amounts or annual period misread: %+v %+v", tx, meta)
+	}
+	// Exercise the PDF extractor too: centers must come from actual rectangles,
+	// even when the text library reports no usable heading widths.
+	data := syntheticBaselinePDFWithFontSize(t, rows, 4)
+	extracted, err := extractor.ExtractPDFPositionalRows(bytes.NewReader(data), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	actual, _, err := parseBankHistoryRows(coalesceICICIHistoryHeaders(extracted), iciciSavingsProfile)
+	if err != nil || len(actual) != 2 || actual[0].TxType != models.TxTypeDebit || actual[1].TxType != models.TxTypeCredit {
+		t.Fatalf("printed cells misread: %+v %v", actual, err)
+	}
+	if rows[1].Elements[1].X != 399 {
+		t.Fatal("normalization mutated source rows")
+	}
+	rows[5].Elements[4].S = "1001.00"
+	if _, _, err := parseBankHistoryRows(coalesceICICIHistoryHeaders(rows), iciciSavingsProfile); err == nil {
+		t.Fatal("broken running balance accepted")
 	}
 }

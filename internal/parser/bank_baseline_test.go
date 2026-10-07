@@ -212,6 +212,9 @@ func syntheticBaselinePDFWithFontSize(t *testing.T, rows []extractor.PositionalR
 			page = row.Page
 		}
 		for _, element := range row.Elements {
+			if element.CellCenterX != 0 {
+				pdf.Rect(element.CellCenterX-30, 650-row.Y-8, 60, 12, "D")
+			}
 			pdf.Text(element.X, 650-row.Y, element.S)
 		}
 	}

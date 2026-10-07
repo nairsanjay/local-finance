@@ -55,7 +55,7 @@ var iciciSavingsProfile = bankHistoryProfile{
 	balanceHeaders: []string{"BALANCE"},
 	reference:      []string{"CHEQUE NUMBER", "CHEQUE NO", "CHQ NO", "REFERENCE"},
 	accountPattern: regexp.MustCompile(`(?i)(?:account\s*(?:number|no\.?)|a/c\s*(?:number|no\.?))\s*:?\s*([0-9X*]{8,20})\b`),
-	periodPattern:  regexp.MustCompile(`(?i)(?:statement\s+period|period\s+from|statement\s+from)\s*:?\s*(\d{2}[./-]\d{2}[./-]\d{2,4})\s*(?:to|-)\s*(\d{2}[./-]\d{2}[./-]\d{2,4})`),
+	periodPattern:  regexp.MustCompile(`(?i)(?:statement\s+period|period\s+from|statement\s+from|for\s+the\s+period)\s*:?\s*(\d{2}[./-]\d{2}[./-]\d{2,4}|[A-Za-z]+\s+\d{1,2},\s*\d{4})\s*(?:to|-)\s*(\d{2}[./-]\d{2}[./-]\d{2,4}|[A-Za-z]+\s+\d{1,2},\s*\d{4})`),
 	openingPattern: regexp.MustCompile(`(?i)opening\s+balance\s*:?\s*([0-9][0-9,]*(?:\.\d{2})?)\s*(CR|DR)?`),
 	closingPattern: regexp.MustCompile(`(?i)closing\s+balance\s*:?\s*([0-9][0-9,]*(?:\.\d{2})?)\s*(CR|DR)?`),
 	debitTotal:     regexp.MustCompile(`(?i)total\s+(?:debits|withdrawals)\s*:?\s*([0-9][0-9,]*(?:\.\d{2})?)`),
@@ -95,6 +95,24 @@ func coalesceICICIHistoryHeaders(rows []extractor.PositionalRow) []extractor.Pos
 			}
 		}
 		result = append(result, row)
+	}
+	// History exports center headings but right-align numeric cells. Using the
+	// heading's left edge shifts the boundary into the withdrawal column and
+	// misclassifies short amounts (for example, 1.00) as deposits.
+	for index := range result {
+		if _, complete := discoverBankHistoryColumns(result[index], iciciSavingsProfile); !complete {
+			continue
+		}
+		result[index].Elements = slices.Clone(result[index].Elements)
+		for elementIndex := range result[index].Elements {
+			element := &result[index].Elements[elementIndex]
+			label := strings.ToUpper(element.S)
+			if matchesBankTerm(label, iciciSavingsProfile.debitHeaders) || matchesBankTerm(label, iciciSavingsProfile.creditHeaders) || matchesBankTerm(label, iciciSavingsProfile.balanceHeaders) {
+				if element.CellCenterX != 0 {
+					element.X = element.CellCenterX
+				}
+			}
+		}
 	}
 	return result
 }
