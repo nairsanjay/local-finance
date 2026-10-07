@@ -13,7 +13,7 @@ import (
 
 func TestPDFPreviewDistinguishesAuthenticationAndDecodingFailures(t *testing.T) {
 	svc := service.NewTransactionService(testDatabase(t))
-	plain := bankHistorySamplePDF(t, "ICICI Bank", "123456781234")
+	plain := syntheticBankHistoryPDF(t, "ICICI Bank", "123456781234")
 	var encrypted bytes.Buffer
 	// Separate passwords ensure document-open authentication works without
 	// requiring the owner/permissions password.

@@ -14,7 +14,7 @@ func TestBankHistoryIdentifiesDistinctAccountsAndIdempotentImports(t *testing.T)
 			svc := service.NewTransactionService(database)
 			var previousAccountID string
 			for _, number := range []string{"123456781234", "123456785678", "987654321234"} {
-				data := bankHistorySamplePDF(t, bank, number)
+				data := syntheticBankHistoryPDF(t, bank, number)
 				// Large metadata makes this a valid PDF beyond the old 64KB
 				// detection slice while retaining compressed content streams.
 				if len(data) <= 65536 {

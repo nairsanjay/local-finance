@@ -69,24 +69,6 @@ LocalFinance features dedicated parsers for major Indian banks, with native extr
 
 Synthetic ICICI and Union Bank savings PDFs in `samples/savings/` exercise parser detection and full PDF extraction in the test suite. They contain only fabricated names, descriptions, dates, and amounts.
 
-### Try a Sample Statement
-
-Sample files are checked into the repository and ready to import; no sample-generation command or Python installation is needed.
-
-| Sample | File |
-| :--- | :--- |
-| HDFC savings (CSV) | [HDFC_Savings_Account_Statement.csv](samples/savings/HDFC_Savings_Account_Statement.csv) |
-| HDFC savings (PDF) | [HDFC_Savings_Account_Statement.pdf](samples/savings/HDFC_Savings_Account_Statement.pdf) |
-| HDFC credit card (CSV) | [HDFC_Credit_Card_Statement.csv](samples/credit_cards/HDFC_Credit_Card_Statement.csv) |
-| ICICI savings (PDF) | [ICICI_Savings_Synthetic.pdf](samples/savings/ICICI_Savings_Synthetic.pdf) |
-| Union Bank savings (PDF) | [Union_Bank_Savings_Synthetic.pdf](samples/savings/Union_Bank_Savings_Synthetic.pdf) |
-
-Download a sample, open **Import Statements**, attach the file, review its preview, and import it. Additional bank and card examples are in [`samples/savings/`](samples/savings/) and [`samples/credit_cards/`](samples/credit_cards/). Use a separate demo database to keep sample transactions apart from your own records.
-
-Integration tests also read checked-in fictional PDFs from [`tests/integration/testdata/bank_history/`](tests/integration/testdata/bank_history/). These cover distinct account identities, repeat imports, and detection in PDFs larger than 64 KB.
-
-Transactions categorized as **Self / P2P Transfers** are excluded from expense totals, spending charts, budgets, and spending reports. They remain visible in the ledger; changing their category to a spending category makes them count toward expenses again.
-
 ### Credit Card Variants Breakdown
 
 | Bank | Card Variant / Series | Network | Supported Formats | Extracted Intelligence | Status |
