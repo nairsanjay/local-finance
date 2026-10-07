@@ -210,7 +210,7 @@ func TestInvestmentAPI(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
 		t.Fatal(err)
 	}
-	usData, err := os.ReadFile("../../internal/investment/testdata/indmoney-fictional.xls")
+	usData, err := os.ReadFile("../../samples/investments/indmoney-fictional.xls")
 	if err != nil {
 		t.Fatal(err)
 	}

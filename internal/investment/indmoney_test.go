@@ -102,7 +102,7 @@ func TestExistingInvestmentJSONValuationCompatibility(t *testing.T) {
 }
 
 func TestINDmoneyLegacyWorkbook(t *testing.T) {
-	data, err := os.ReadFile("testdata/indmoney-fictional.xls")
+	data, err := os.ReadFile("../../samples/investments/indmoney-fictional.xls")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -69,6 +69,21 @@ LocalFinance features dedicated parsers for major Indian banks, with native extr
 
 Synthetic ICICI and Union Bank savings PDFs in `samples/savings/` exercise parser detection and full PDF extraction in the test suite. They contain only fabricated names, descriptions, dates, and amounts.
 
+### Investment Statements and Samples
+
+Import portfolio holdings through **Import Statements → Investments**. Attach a supported workbook, review its preview, and import it. The **Investments** page shows dated holdings, provider fields, and original worksheets.
+
+| Provider | Format | Ready-to-import fictional sample | Expected values |
+| :--- | :--- | :--- | :--- |
+| Zerodha | Holdings export (`.xlsx`) | [zerodha-fictional.xlsx](samples/investments/zerodha-fictional.xlsx) | Invested ₹800; current value ₹900; unrealized return ₹100 (12.5%) |
+| INDmoney | US stock holdings export (`.xls`) | [indmoney-fictional.xls](samples/investments/indmoney-fictional.xls) | Current value $62.345679; acquisition cost and returns unavailable |
+
+Both samples contain only fictional accounts and holdings dated April 1, 2026. Download and import them directly; Python and sample-generation scripts are not required. Use a separate demo database to keep them apart from your own portfolio.
+
+Portfolio totals use the latest statement per provider, account, and currency. INR and USD totals remain separate, with no currency conversion or live price lookup. Re-importing the same workbook does not create a duplicate snapshot. Investment holdings stay separate from bank transactions and do not affect income, expenses, cash flow, or budgets.
+
+Zerodha statements provide cost and closing valuations. INDmoney's **Total Value** is current valuation; its export does not supply acquisition cost, so invested value and returns remain unavailable. A holdings snapshot cannot provide annualized returns or XIRR.
+
 ### Credit Card Variants Breakdown
 
 | Bank | Card Variant / Series | Network | Supported Formats | Extracted Intelligence | Status |
