@@ -1491,7 +1491,7 @@ func (d *DB) GetAnalyticsOverview() (*models.AnalyticsOverview, error) {
 			SUM(CASE WHEN ` + incomeFilter("") + ` THEN amount ELSE 0 END),
 			SUM(CASE WHEN ` + spendingFilter("") + ` THEN amount ELSE 0 END)
 		FROM transactions
-		WHERE is_transfer = 0 AND is_excluded = 0
+		WHERE ` + financialActivityFilter("") + `
 	`).Scan(&totalIncome, &totalExpense)
 	if err != nil {
 		return nil, err
@@ -1547,7 +1547,7 @@ func (d *DB) GetAnalyticsOverview() (*models.AnalyticsOverview, error) {
 			SUM(CASE WHEN ` + incomeFilter("") + ` THEN amount ELSE 0 END) as income,
 			SUM(CASE WHEN ` + spendingFilter("") + ` THEN amount ELSE 0 END) as expense
 		FROM transactions
-		WHERE is_transfer = 0 AND is_excluded = 0
+		WHERE ` + financialFlowFilter("") + `
 		GROUP BY month
 		ORDER BY month ASC
 		LIMIT 12
@@ -2997,7 +2997,7 @@ func (d *DB) GetCashFlowIntelligence(period string) (*models.CashFlowIntelligenc
 	mRows, err := d.conn.Query(`
 		SELECT DISTINCT strftime('%Y-%m', tx_date) as m
 		FROM transactions
-		WHERE is_transfer = 0 AND is_excluded = 0 AND tx_date IS NOT NULL AND tx_date != ''
+		WHERE ` + financialFlowFilter("") + ` AND tx_date IS NOT NULL AND tx_date != ''
 		ORDER BY m DESC
 	`)
 	if err == nil {

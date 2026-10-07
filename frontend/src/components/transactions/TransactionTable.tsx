@@ -7,7 +7,7 @@ import {
 } from '@tanstack/react-table'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSearch, useNavigate } from '@tanstack/react-router'
-import type { Transaction, TimeWindowPreset, TransactionsSearchParams } from '@/types'
+import { CATEGORY_TRANSFERS_ID, type Transaction, type TimeWindowPreset, type TransactionsSearchParams } from '@/types'
 export type { TimeWindowPreset } from '@/types'
 import { fetchAccounts, fetchCategories, fetchTransactions, createRule, reapplyRules, updateTransaction } from '@/lib/api'
 import { formatDate } from '@/lib/utils'
@@ -451,7 +451,7 @@ export const TransactionTable: React.FC = () => {
     let debits = 0
     let credits = 0
     filteredItems.forEach((tx) => {
-      if (tx.is_transfer || tx.is_excluded || tx.category_id === 'cat_transfers') return
+      if (tx.is_transfer || tx.is_excluded || tx.category_id === CATEGORY_TRANSFERS_ID) return
       if (tx.tx_type === 'DEBIT') debits += tx.amount
       else if (tx.tx_type === 'CREDIT') credits += tx.amount
     })

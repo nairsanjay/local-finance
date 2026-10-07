@@ -65,6 +65,8 @@ export interface StatementImport {
   imported_at: string
 }
 
+export const CATEGORY_TRANSFERS_ID = 'cat_transfers'
+
 export interface Category {
   id: string
   name: string

@@ -30,3 +30,8 @@ func spendingFilter(alias string) string {
 func incomeFilter(alias string) string {
 	return sqlColumnPrefix(alias) + "tx_type = 'CREDIT' AND " + financialActivityFilter(alias)
 }
+
+func financialFlowFilter(alias string) string {
+	prefix := sqlColumnPrefix(alias)
+	return "(" + prefix + "tx_type = 'DEBIT' OR " + prefix + "tx_type = 'CREDIT') AND " + financialActivityFilter(alias)
+}
