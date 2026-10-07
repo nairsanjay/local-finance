@@ -39,6 +39,9 @@
 - **Duplicate Detection & Smart Upsert**:
   - Deterministic `SHA-256` transaction hashing prevents duplicates when uploading overlapping statement periods.
   - Idempotent SQLite upserts (`ON CONFLICT`) safely update balances while **strictly preserving** your custom category overrides, notes, and tags.
+- **Own-account transfer reconciliation**:
+  - Bank transfers with a unique shared payment reference, equal amounts, the same currency, and dates within three days are linked on import and startup, excluding both legs from income and expenses.
+  - Missing or ambiguous references require confirmation in Reconcile. Payee names and transfer categories alone never trigger automatic bank matching.
 - **Optional Local Security / Password Protection**:
   - Protect local database access with an optional PIN/password stored with PBKDF2/argon2 hashing, complete with automatic lock timeout.
 - **Built-in Release Checks & Updates**:

@@ -5,8 +5,47 @@ import (
 	"testing"
 
 	"local-finance/internal/db"
+	"local-finance/internal/models"
 	"local-finance/internal/service"
 )
+
+func TestReferenceTransfersReconciledOnImportInEitherOrder(t *testing.T) {
+	const header = "Date,Narration,Chq/Ref,Value Dt,Withdrawal,Deposit,Closing Balance\n"
+	statements := []string{
+		header + "01/04/2026,UPIAR/123456789012/DR/PERSON/BANK/person,,01/04/2026,500,,500\n02/04/2026,SHOP,123456789015,02/04/2026,100,,400\n",
+		header + "01/04/2026,UPI-PERSON-person@bank-BANK-123456789012-PAYMENT,123456789012,01/04/2026,,500,500\n02/04/2026,EMPLOYER SALARY,123456789016,02/04/2026,,1000,1500\n",
+	}
+	for _, order := range [][]int{{0, 1}, {1, 0}} {
+		database := testDatabase(t)
+		var accountIDs []string
+		for _, mask := range []string{"XX1001", "XX1002"} {
+			a, err := database.GetOrCreateAccount("HDFC Bank", models.AccountTypeSavings, "", mask, "", "", "", "", "", "", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			accountIDs = append(accountIDs, a.ID)
+		}
+		svc := service.NewTransactionService(database)
+		for attempt := 0; attempt < 2; attempt++ {
+			for _, index := range order {
+				result, err := svc.ImportStatement("hdfc.csv", strings.NewReader(statements[index]), accountIDs[index], "hdfc_savings_csv_v1", "")
+				if err != nil {
+					t.Fatal(err)
+				}
+				if attempt == 1 && (result.InsertedCount != 0 || result.DuplicateCount != 2) {
+					t.Fatalf("reupload not idempotent: %+v", result)
+				}
+			}
+			overview, err := database.GetAnalyticsOverview()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if overview.TotalExpense != 100 || overview.TotalIncome != 1000 {
+				t.Fatalf("import order %v included transfers: %+v", order, overview)
+			}
+		}
+	}
+}
 
 func TestSelfTransfersExcludedFromIncomeAndExpense(t *testing.T) {
 	database := testDatabase(t)

@@ -4012,6 +4012,7 @@ func (d *DB) GetSalaryInsights() (*models.SalaryInsightsResponse, error) {
 		LEFT JOIN categories c ON t.category_id = c.id
 		WHERE t.tx_type = 'CREDIT' 
 		  AND t.is_excluded = 0
+		  AND t.is_transfer = 0
 		  AND (
 		      t.category_id = 'cat_salary' 
 		      OR t.payment_mode = 'SALARY'

@@ -248,6 +248,9 @@ func (s *TransactionService) ImportStatement(filename string, r io.Reader, manua
 
 	// 9. Recalculate account balance
 	_ = s.db.RecalculateAccountBalance(account.ID)
+	if _, err := NewReconciliationService(s.db).ReconcileOwnAccountTransfers(); err != nil {
+		return nil, fmt.Errorf("statement saved, but own-account reconciliation failed: %w", err)
+	}
 
 	// 10. Automatically scan and update recurring subscriptions
 	subService := NewSubscriptionService(s.db)

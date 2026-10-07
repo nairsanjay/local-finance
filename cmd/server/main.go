@@ -46,6 +46,11 @@ func main() {
 		log.Fatalf("❌ Failed to initialize database: %v", err)
 	}
 	defer database.Close()
+	if count, err := service.NewReconciliationService(database).ReconcileOwnAccountTransfers(); err != nil {
+		log.Printf("Own-account reconciliation failed: %v", err)
+	} else if count > 0 {
+		log.Printf("Reconciled %d own-account transfer pairs", count)
+	}
 
 	svc := service.NewTransactionService(database)
 	router := api.SetupRouter(database, svc, localfinance.GetStaticFS())
