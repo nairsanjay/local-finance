@@ -12,6 +12,11 @@ export interface InvestmentHolding {
   fields: Record<string, string>
 }
 
+export interface InvestmentFormats {
+  parsers: { id: string; provider: string; name: string; extensions: string[] }[]
+  max_file_size: number
+}
+
 export interface InvestmentSnapshot {
   id: string
   provider: string

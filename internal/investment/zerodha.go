@@ -16,6 +16,10 @@ import (
 
 type ZerodhaHoldingsParser struct{}
 
+func (ZerodhaHoldingsParser) Info() ParserInfo {
+	return ParserInfo{Provider: "Zerodha", Name: "Holdings export", Extensions: []string{".xlsx"}}
+}
+
 func (ZerodhaHoldingsParser) ID() string { return "zerodha_holdings_xlsx_v1" }
 
 var holdingsDate = regexp.MustCompile(`(?i)holdings statement as on (\d{4}-\d{2}-\d{2})`)

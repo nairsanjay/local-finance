@@ -8,14 +8,33 @@ import (
 
 type Parser interface {
 	ID() string
+	Info() ParserInfo
 	CanParse(filename string, data []byte) bool
 	Parse(data []byte) (*models.InvestmentSnapshot, error)
+}
+
+// ParserInfo describes the adapter's import capabilities to any client.
+type ParserInfo struct {
+	ID         string   `json:"id"`
+	Provider   string   `json:"provider"`
+	Name       string   `json:"name"`
+	Extensions []string `json:"extensions"`
 }
 
 type Registry struct{ parsers []Parser }
 
 func NewRegistry() *Registry          { return &Registry{} }
 func (r *Registry) Register(p Parser) { r.parsers = append(r.parsers, p) }
+func (r *Registry) List() []ParserInfo {
+	result := make([]ParserInfo, 0, len(r.parsers))
+	for _, p := range r.parsers {
+		info := p.Info()
+		info.ID = p.ID()
+		info.Extensions = append([]string{}, info.Extensions...)
+		result = append(result, info)
+	}
+	return result
+}
 func (r *Registry) Parse(filename string, data []byte) (*models.InvestmentSnapshot, error) {
 	var selected Parser
 	for _, p := range r.parsers {

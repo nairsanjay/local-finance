@@ -69,6 +69,14 @@ func TestInvestmentImportIsolationAndHistory(t *testing.T) {
 	database := testDatabase(t)
 	svc := service.NewInvestmentService(database)
 	data := investmentWorkbook(t, nil)
+	preview, err := svc.Preview("demo-holdings.xlsx", bytes.NewReader(data))
+	if err != nil || preview.ID != "" || len(preview.Holdings) != 2 {
+		t.Fatalf("incorrect preview: %+v %v", preview, err)
+	}
+	before, err := database.ListInvestmentSnapshots()
+	if err != nil || len(before) != 0 {
+		t.Fatal("preview persisted an investment", err)
+	}
 	snapshot, duplicate, err := svc.Import("demo-holdings.xlsx", bytes.NewReader(data))
 	if err != nil {
 		t.Fatal(err)
@@ -153,7 +161,7 @@ func TestInvestmentParserRejectsInvalidWorkbooks(t *testing.T) {
 func TestInvestmentAPI(t *testing.T) {
 	database := testDatabase(t)
 	router := api.SetupRouter(database, service.NewTransactionService(database), nil)
-	upload := func(data []byte) *httptest.ResponseRecorder {
+	upload := func(path string, data []byte) *httptest.ResponseRecorder {
 		var body bytes.Buffer
 		writer := multipart.NewWriter(&body)
 		part, err := writer.CreateFormFile("file", "fictional.xlsx")
@@ -164,13 +172,30 @@ func TestInvestmentAPI(t *testing.T) {
 			t.Fatal(err)
 		}
 		writer.Close()
-		req := httptest.NewRequest(http.MethodPost, "/api/investments/import", &body)
+		req := httptest.NewRequest(http.MethodPost, path, &body)
 		req.Header.Set("Content-Type", writer.FormDataContentType())
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 		return w
 	}
-	w := upload(investmentWorkbook(t, nil))
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/investments/formats", nil))
+	var formats struct {
+		Parsers []investment.ParserInfo `json:"parsers"`
+		MaxSize int                     `json:"max_file_size"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &formats); err != nil || w.Code != 200 || len(formats.Parsers) != 1 || formats.Parsers[0].Extensions[0] != ".xlsx" || formats.MaxSize != service.MaxInvestmentFileSize {
+		t.Fatal("invalid format discovery", err)
+	}
+	w = upload("/api/investments/preview", investmentWorkbook(t, nil))
+	if w.Code != 200 {
+		t.Fatal("preview failed", w.Body.String())
+	}
+	list, err := database.ListInvestmentSnapshots()
+	if err != nil || len(list) != 0 {
+		t.Fatal("preview saved data", err)
+	}
+	w = upload("/api/investments/import", investmentWorkbook(t, nil))
 	if w.Code != 200 {
 		t.Fatal(w.Code, w.Body.String())
 	}
@@ -180,7 +205,7 @@ func TestInvestmentAPI(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
 		t.Fatal(err)
 	}
-	w = upload([]byte("invalid"))
+	w = upload("/api/investments/import", []byte("invalid"))
 	if w.Code != 400 {
 		t.Fatal("bad upload should return 400")
 	}

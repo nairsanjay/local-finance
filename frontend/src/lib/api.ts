@@ -18,6 +18,23 @@ export async function fetchInvestments(): Promise<import('../types/investments')
   return res.json()
 }
 
+export async function fetchInvestmentFormats(): Promise<import('../types/investments').InvestmentFormats> {
+  const res = await fetchWithAuth(`${BASE_URL}/investments/formats`)
+  if (!res.ok) throw new Error('Unable to load supported investment formats')
+  return res.json()
+}
+
+export async function previewInvestment(file: File): Promise<import('../types/investments').InvestmentSnapshot> {
+  const body = new FormData()
+  body.append('file', file)
+  const res = await fetchWithAuth(`${BASE_URL}/investments/preview`, { method: 'POST', body })
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ error: 'Unable to preview investment statement' }))
+    throw new Error(error.error)
+  }
+  return res.json()
+}
+
 export async function importInvestment(file: File): Promise<{ snapshot: import('../types/investments').InvestmentSnapshot; duplicate: boolean }> {
   const body = new FormData()
   body.append('file', file)

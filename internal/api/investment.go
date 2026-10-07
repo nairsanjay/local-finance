@@ -2,9 +2,14 @@ package api
 
 import (
 	"github.com/gin-gonic/gin"
+	"local-finance/internal/investment"
 	"local-finance/internal/service"
 	"net/http"
 )
+
+func (h *Handler) InvestmentFormats(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"parsers": investment.DefaultRegistry.List(), "max_file_size": service.MaxInvestmentFileSize})
+}
 
 func (h *Handler) ListInvestments(c *gin.Context) {
 	result, err := h.db.ListInvestmentSnapshots()
@@ -15,6 +20,12 @@ func (h *Handler) ListInvestments(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 func (h *Handler) ImportInvestment(c *gin.Context) {
+	h.investmentUpload(c, false)
+}
+func (h *Handler) PreviewInvestment(c *gin.Context) {
+	h.investmentUpload(c, true)
+}
+func (h *Handler) investmentUpload(c *gin.Context, preview bool) {
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, service.MaxInvestmentFileSize+(1<<20))
 	if err := c.Request.ParseMultipartForm(service.MaxInvestmentFileSize); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid upload or file exceeds 10 MB"})
@@ -29,6 +40,15 @@ func (h *Handler) ImportInvestment(c *gin.Context) {
 		return
 	}
 	defer file.Close()
+	if preview {
+		snapshot, err := service.NewInvestmentService(h.db).Preview(header.Filename, file)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, snapshot)
+		return
+	}
 	snapshot, duplicate, err := service.NewInvestmentService(h.db).Import(header.Filename, file)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})

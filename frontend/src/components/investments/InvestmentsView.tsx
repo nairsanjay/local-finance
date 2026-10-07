@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { UploadCloud, TrendingUp } from 'lucide-react'
-import { fetchInvestments, importInvestment, deleteInvestment } from '@/lib/api'
+import { TrendingUp } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
+import { fetchInvestments, deleteInvestment } from '@/lib/api'
 import { usePrivacy } from '@/components/privacy-provider'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -15,8 +16,6 @@ export function InvestmentsView() {
   const client = useQueryClient()
   const { isPrivacyMode, maskValue } = usePrivacy()
   const [selected, setSelected] = useState('')
-  const [file, setFile] = useState<File | null>(null)
-  const [fileInputVersion, setFileInputVersion] = useState(0)
   const [search, setSearch] = useState('')
   const [asset, setAsset] = useState('ALL')
   const [sourceSheet, setSourceSheet] = useState('')
@@ -24,16 +23,6 @@ export function InvestmentsView() {
   const [message, setMessage] = useState('')
   const query = useQuery({ queryKey: ['investments'], queryFn: fetchInvestments })
   const snapshot = query.data?.find(s => s.id === selected) ?? query.data?.[0]
-  const upload = useMutation({
-    mutationFn: importInvestment,
-    onSuccess: async result => {
-      await client.invalidateQueries({ queryKey: ['investments'] })
-      setSelected(result.snapshot.id)
-      setMessage(result.duplicate ? 'This statement is already imported.' : 'Investment statement imported.')
-      setFile(null)
-      setFileInputVersion(version => version + 1)
-    },
-  })
   const remove = useMutation({
     mutationFn: deleteInvestment,
     onSuccess: async () => { await client.invalidateQueries({ queryKey: ['investments'] }); setSelected(''); setMessage('Snapshot deleted.') },
@@ -46,19 +35,14 @@ export function InvestmentsView() {
   const percent = (value: number | null) => value === null ? 'Not available' : maskValue(`${value.toFixed(2)}%`)
   const sheet = snapshot?.sheets.find(s => s.name === sourceSheet) ?? snapshot?.sheets[0]
   const sourceRows = sheet?.rows.filter(row => row?.some(cell => cell.trim() !== '')) ?? []
-  const error = upload.error ?? remove.error ?? query.error
+  const error = remove.error ?? query.error
 
   return <div className="space-y-6">
     <div><h1 className="text-2xl font-semibold flex items-center gap-2"><TrendingUp className="h-6 w-6" />Investments</h1>
       <p className="text-sm text-muted-foreground mt-1">Dated portfolio holdings and unrealized returns. Kept separate from income and expense totals.</p></div>
-    <Card><CardHeader><CardTitle>Import investment statement</CardTitle></CardHeader><CardContent className="space-y-3">
-      <p className="text-sm text-muted-foreground">Upload a Zerodha holdings Excel export. Equity, mutual funds, and statement details are stored locally.</p>
-      <div className="flex flex-wrap items-end gap-3"><div className="space-y-2"><Label htmlFor="investment-file">Holdings statement (.xlsx, up to 10 MB)</Label>
-        <Input key={fileInputVersion} id="investment-file" type="file" accept=".xlsx" onChange={e => { setFile(e.target.files?.[0] ?? null); setMessage(''); upload.reset() }} /></div>
-        <Button disabled={!file || upload.isPending} onClick={() => file && upload.mutate(file)}><UploadCloud className="h-4 w-4 mr-2" />{upload.isPending ? 'Importing…' : 'Import'}</Button></div>
-      {error && <p role="alert" className="text-sm text-destructive">{error.message}</p>}
-      {message && <p role="status" className="text-sm">{message}</p>}
-    </CardContent></Card>
+    <Link to="/import" search={{ tab: 'investments' }} className="inline-flex rounded-lg border px-3 py-2 text-sm font-medium">Import investment statements</Link>
+    {error && <p role="alert" className="text-sm text-destructive">{error.message}</p>}
+    {message && <p role="status" className="text-sm">{message}</p>}
     {query.isPending && <p>Loading investments…</p>}
     {!query.isPending && !query.error && !snapshot && <Card><CardContent className="py-12 text-center text-muted-foreground">Import your first holdings statement to see your portfolio.</CardContent></Card>}
     {snapshot && <>
@@ -87,7 +71,7 @@ export function InvestmentsView() {
           {!holdings.length && <TableRow><TableCell colSpan={8} className="text-center">No holdings match your filters.</TableCell></TableRow>}
         </TableBody></Table></CardContent></Card>
       <Card><CardHeader className="flex flex-row items-center justify-between"><CardTitle>Statement details</CardTitle><Button variant="outline" onClick={() => setShowSource(!showSource)}>{showSource ? 'Hide details' : 'Show all fields'}</Button></CardHeader>
-        {showSource && <CardContent className="space-y-3"><p className="text-xs text-muted-foreground">Original worksheet fields include sector, instrument type, available, long-term, discrepant, and pledged quantities. Repeated sheets are shown here without adding them to portfolio totals.</p>
+        {showSource && <CardContent className="space-y-3"><p className="text-xs text-muted-foreground">Original statement fields are preserved here. Repeated worksheets are shown without adding them to portfolio totals.</p>
           <Select value={sheet?.name ?? ''} onValueChange={value => setSourceSheet(value ?? '')}><SelectTrigger className="w-[200px]" aria-label="Statement worksheet"><SelectValue>{sheet?.name}</SelectValue></SelectTrigger><SelectContent>{snapshot.sheets.map(s => <SelectItem key={s.name} value={s.name}>{s.name}</SelectItem>)}</SelectContent></Select>
           <Table><TableBody>{sourceRows.map((row, i) => <TableRow key={i}>{row.map((value, j) => <TableCell key={j} className="whitespace-nowrap">{maskValue(value)}</TableCell>)}</TableRow>)}</TableBody></Table>
         </CardContent>}

@@ -23,7 +23,7 @@ import { TopPayeesList } from '@/components/dashboard/TopPayeesList'
 import { AccountCard } from '@/components/dashboard/AccountCard'
 import { CreditCardBillsCard } from '@/components/dashboard/CreditCardBillsCard'
 import { TransactionTable } from '@/components/transactions/TransactionTable'
-import { StatementUploader } from '@/components/import/StatementUploader'
+import { StatementImportView } from '@/components/import/StatementImportView'
 import { CalendarView } from '@/components/calendar/CalendarView'
 import { SettingsView } from '@/components/settings/SettingsView'
 import { SubscriptionsView } from '@/components/subscriptions/SubscriptionsView'
@@ -403,17 +403,8 @@ const calendarRoute = createRoute({
 const importRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/import',
-  component: () => (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">Statement Import</h1>
-        <p className="text-xs text-muted-foreground mt-1">
-          Upload bank and credit card files with auto-detection and smart duplicate fingerprinting
-        </p>
-      </div>
-      <StatementUploader />
-    </div>
-  ),
+  validateSearch: (search: Record<string, unknown>): { tab?: 'investments' } => ({ tab: search.tab === 'investments' ? 'investments' : undefined }),
+  component: () => <StatementImportView initialTab={importRoute.useSearch().tab ?? 'bank'} />,
 })
 
 const subscriptionsRoute = createRoute({
