@@ -61,6 +61,12 @@ func NewDB(dbPath string) (*DB, error) {
 	if err := d.seedDefaultRules(); err != nil {
 		return nil, fmt.Errorf("failed to seed default rules: %w", err)
 	}
+	// Keep existing automatically detected transfers in the transfer category.
+	if _, err := conn.Exec(`UPDATE transactions SET category_id = 'cat_transfers'
+		WHERE is_transfer = 1 AND COALESCE(is_manual_category, 0) = 0
+		AND COALESCE(category_id, '') != 'cat_transfers'`); err != nil {
+		return nil, fmt.Errorf("failed to categorize existing transfers: %w", err)
+	}
 
 	return d, nil
 }
@@ -478,6 +484,10 @@ func (d *DB) ListStatementImports() ([]models.StatementImport, error) {
 
 // Transaction Upsert
 func (d *DB) UpsertTransaction(tx *models.Transaction) (bool, error) {
+	if tx.IsTransfer && !tx.IsManualCategory {
+		category := "cat_transfers"
+		tx.CategoryID = &category
+	}
 	var existingID string
 	var existingCatID sql.NullString
 	var existingNotes sql.NullString
@@ -525,6 +535,10 @@ func (d *DB) UpsertTransaction(tx *models.Transaction) (bool, error) {
 	if existingCatID.Valid && existingCatID.String != "" {
 		val := existingCatID.String
 		catIDToKeep = &val
+	}
+	if tx.IsTransfer && !existingManualCat.Bool {
+		category := "cat_transfers"
+		catIDToKeep = &category
 	}
 	notesToKeep := tx.Notes
 	if existingNotes.Valid && existingNotes.String != "" {
@@ -1006,7 +1020,7 @@ func (d *DB) ReapplyRules() (int, error) {
 	rows, err := d.conn.Query(`
 		SELECT id, raw_narration, cleaned_payee, reference_number, upi_vpa, category_id, tx_type
 		FROM transactions
-		WHERE COALESCE(is_manual_category, 0) = 0
+		WHERE COALESCE(is_manual_category, 0) = 0 AND is_transfer = 0
 	`)
 	if err != nil {
 		return 0, err
@@ -1486,7 +1500,7 @@ func (d *DB) GetAnalyticsOverview() (*models.AnalyticsOverview, error) {
 			SUM(CASE WHEN tx_type = 'CREDIT' THEN amount ELSE 0 END),
 			SUM(CASE WHEN tx_type = 'DEBIT' THEN amount ELSE 0 END)
 		FROM transactions
-		WHERE is_transfer = 0 AND is_excluded = 0
+		WHERE is_transfer = 0 AND is_excluded = 0 AND (tx_type != 'DEBIT' OR COALESCE(category_id, '') != 'cat_transfers')
 	`).Scan(&totalIncome, &totalExpense)
 	if err != nil {
 		return nil, err
@@ -1518,7 +1532,7 @@ func (d *DB) GetAnalyticsOverview() (*models.AnalyticsOverview, error) {
 			COUNT(t.id) as tx_count
 		FROM transactions t
 		LEFT JOIN categories c ON t.category_id = c.id
-		WHERE t.tx_type = 'DEBIT' AND t.is_transfer = 0 AND t.is_excluded = 0
+		WHERE t.tx_type = 'DEBIT' AND t.is_transfer = 0 AND t.is_excluded = 0 AND COALESCE(t.category_id, '') != 'cat_transfers'
 		GROUP BY cat_id, cat_name, color_hex, icon
 		ORDER BY total_amount DESC
 	`)
@@ -1542,7 +1556,7 @@ func (d *DB) GetAnalyticsOverview() (*models.AnalyticsOverview, error) {
 			SUM(CASE WHEN tx_type = 'CREDIT' THEN amount ELSE 0 END) as income,
 			SUM(CASE WHEN tx_type = 'DEBIT' THEN amount ELSE 0 END) as expense
 		FROM transactions
-		WHERE is_transfer = 0 AND is_excluded = 0
+		WHERE is_transfer = 0 AND is_excluded = 0 AND (tx_type != 'DEBIT' OR COALESCE(category_id, '') != 'cat_transfers')
 		GROUP BY month
 		ORDER BY month ASC
 		LIMIT 12
@@ -1566,7 +1580,7 @@ func (d *DB) GetAnalyticsOverview() (*models.AnalyticsOverview, error) {
 			SUM(amount) as total_spent,
 			COUNT(id) as tx_count
 		FROM transactions
-		WHERE tx_type = 'DEBIT' AND cleaned_payee != '' AND is_transfer = 0 AND is_excluded = 0
+		WHERE tx_type = 'DEBIT' AND cleaned_payee != '' AND is_transfer = 0 AND is_excluded = 0 AND COALESCE(category_id, '') != 'cat_transfers'
 		GROUP BY cleaned_payee, payment_mode
 		ORDER BY total_spent DESC
 		LIMIT 10
@@ -2227,7 +2241,7 @@ func (d *DB) GetCardPortfolioOverview() (*models.CardPortfolioOverview, error) {
 		_ = d.conn.QueryRow(`
 			SELECT COALESCE(SUM(amount), 0)
 			FROM transactions
-			WHERE account_id = ? AND tx_type = 'DEBIT' AND strftime('%Y', tx_date) = ? AND is_transfer = 0 AND is_excluded = 0
+			WHERE account_id = ? AND tx_type = 'DEBIT' AND strftime('%Y', tx_date) = ? AND is_transfer = 0 AND is_excluded = 0 AND COALESCE(category_id, '') != 'cat_transfers'
 		`, r.a.ID, fmt.Sprintf("%d", currentYear)).Scan(&ytdSpend)
 		cd.TotalSpendThisYear = ytdSpend
 
@@ -2436,7 +2450,7 @@ func (d *DB) GetCategoryBudgetSummary(monthStr string) (*models.BudgetSummary, e
 		_ = d.conn.QueryRow(`
 			SELECT COALESCE(SUM(amount), 0)
 			FROM transactions
-			WHERE category_id = ? AND tx_type = 'DEBIT' AND is_transfer = 0 AND is_excluded = 0 AND strftime('%Y-%m', tx_date) = ?
+			WHERE category_id = ? AND tx_type = 'DEBIT' AND is_transfer = 0 AND is_excluded = 0 AND COALESCE(category_id, '') != 'cat_transfers' AND strftime('%Y-%m', tx_date) = ?
 		`, c.ID, monthStr).Scan(&spend)
 
 		// Calculate metrics
@@ -2627,7 +2641,8 @@ func (d *DB) LinkTransferPair(debitTxID, creditTxID, reason string) error {
 
 	_, err = tx.Exec(`
 		UPDATE transactions 
-		SET is_transfer = 1, transfer_peer_id = ?, transfer_match_reason = ? 
+		SET is_transfer = 1, transfer_peer_id = ?, transfer_match_reason = ?,
+		category_id = CASE WHEN COALESCE(is_manual_category, 0) = 0 THEN 'cat_transfers' ELSE category_id END
 		WHERE id = ?
 	`, creditTxID, reason, debitTxID)
 	if err != nil {
@@ -2636,7 +2651,8 @@ func (d *DB) LinkTransferPair(debitTxID, creditTxID, reason string) error {
 
 	_, err = tx.Exec(`
 		UPDATE transactions 
-		SET is_transfer = 1, transfer_peer_id = ?, transfer_match_reason = ? 
+		SET is_transfer = 1, transfer_peer_id = ?, transfer_match_reason = ?,
+		category_id = CASE WHEN COALESCE(is_manual_category, 0) = 0 THEN 'cat_transfers' ELSE category_id END
 		WHERE id = ?
 	`, debitTxID, reason, creditTxID)
 	if err != nil {
@@ -2661,7 +2677,7 @@ func (d *DB) UnlinkTransferPair(txID string) error {
 
 	_, err = tx.Exec(`
 		UPDATE transactions 
-		SET is_transfer = 0, transfer_peer_id = NULL, transfer_match_reason = 'MANUALLY_UNLINKED'
+		SET is_transfer = 0, transfer_peer_id = NULL, transfer_match_reason = NULL
 		WHERE id = ?
 	`, txID)
 	if err != nil {
@@ -2671,7 +2687,7 @@ func (d *DB) UnlinkTransferPair(txID string) error {
 	if peerID.Valid && peerID.String != "" {
 		_, err = tx.Exec(`
 			UPDATE transactions 
-			SET is_transfer = 0, transfer_peer_id = NULL, transfer_match_reason = 'MANUALLY_UNLINKED'
+			SET is_transfer = 0, transfer_peer_id = NULL, transfer_match_reason = NULL
 			WHERE id = ?
 		`, peerID.String)
 		if err != nil {
@@ -2705,7 +2721,7 @@ func (d *DB) ListMerchants(search, category, sortBy string) (*models.MerchantLis
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
-	where := []string{"t.cleaned_payee != ''", "t.is_transfer = 0", "t.is_excluded = 0"}
+	where := []string{"t.cleaned_payee != ''", "t.is_transfer = 0", "t.is_excluded = 0", "(t.tx_type != 'DEBIT' OR COALESCE(t.category_id, '') != 'cat_transfers')"}
 	args := []interface{}{}
 
 	if search != "" {
@@ -2846,7 +2862,7 @@ func (d *DB) GetMerchantProfile(payeeName string) (*models.MerchantProfile, erro
 			MAX(t.tx_date)
 		FROM transactions t
 		LEFT JOIN categories c ON t.category_id = c.id
-		WHERE t.cleaned_payee = ?
+		WHERE t.cleaned_payee = ? AND (t.tx_type != 'DEBIT' OR COALESCE(t.category_id, '') != 'cat_transfers')
 	`, payeeName).Scan(
 		&catName, &catColor, &catIcon,
 		&totalSpend, &totalCredits,
@@ -2883,7 +2899,7 @@ func (d *DB) GetMerchantProfile(payeeName string) (*models.MerchantProfile, erro
 			COUNT(t.id) as cnt
 		FROM transactions t
 		JOIN accounts a ON t.account_id = a.id
-		WHERE t.cleaned_payee = ? AND t.tx_type = 'DEBIT'
+		WHERE t.cleaned_payee = ? AND t.tx_type = 'DEBIT' AND COALESCE(t.category_id, '') != 'cat_transfers'
 		GROUP BY acc_name
 		ORDER BY spend DESC
 	`, payeeName)
@@ -2919,7 +2935,7 @@ func (d *DB) GetMerchantProfile(payeeName string) (*models.MerchantProfile, erro
 			COALESCE(SUM(amount), 0),
 			COUNT(id)
 		FROM transactions
-		WHERE cleaned_payee = ? AND tx_type = 'DEBIT'
+		WHERE cleaned_payee = ? AND tx_type = 'DEBIT' AND COALESCE(category_id, '') != 'cat_transfers'
 		GROUP BY m
 		ORDER BY m ASC
 	`, payeeName)
@@ -2984,7 +3000,7 @@ func (d *DB) GetCashFlowIntelligence(period string) (*models.CashFlowIntelligenc
 	mRows, err := d.conn.Query(`
 		SELECT DISTINCT strftime('%Y-%m', tx_date) as m
 		FROM transactions
-		WHERE is_transfer = 0 AND is_excluded = 0 AND tx_date IS NOT NULL AND tx_date != ''
+		WHERE is_transfer = 0 AND is_excluded = 0 AND (tx_type != 'DEBIT' OR COALESCE(category_id, '') != 'cat_transfers') AND tx_date IS NOT NULL AND tx_date != ''
 		ORDER BY m DESC
 	`)
 	if err == nil {
@@ -3144,7 +3160,7 @@ func (d *DB) GetCashFlowIntelligence(period string) (*models.CashFlowIntelligenc
 		FROM transactions t
 		JOIN accounts a ON t.account_id = a.id
 		LEFT JOIN categories c ON t.category_id = c.id
-		WHERE t.tx_type = 'DEBIT' AND t.is_transfer = 0 AND t.is_excluded = 0 AND %s
+		WHERE t.tx_type = 'DEBIT' AND t.is_transfer = 0 AND t.is_excluded = 0 AND COALESCE(t.category_id, '') != 'cat_transfers' AND %s
 	`, dateClause)
 
 	debitRows, err := d.conn.Query(outflowQuery, dateArgs...)
@@ -3469,7 +3485,7 @@ func (d *DB) GetCashFlowIntelligence(period string) (*models.CashFlowIntelligenc
 		prevRows, err := d.conn.Query(`
 			SELECT COALESCE(category_id, 'cat_others'), SUM(amount)
 			FROM transactions
-			WHERE tx_type = 'DEBIT' AND is_transfer = 0 AND is_excluded = 0
+			WHERE tx_type = 'DEBIT' AND is_transfer = 0 AND is_excluded = 0 AND COALESCE(category_id, '') != 'cat_transfers'
 			  AND tx_date >= ? AND tx_date <= ?
 			GROUP BY category_id
 		`, res.PreviousMonth+"-01", res.PreviousMonth+"-31")
@@ -3510,7 +3526,7 @@ func (d *DB) GetCashFlowIntelligence(period string) (*models.CashFlowIntelligenc
 			SELECT strftime('%Y-%m', tx_date) as m, COALESCE(SUM(amount), 0)
 			FROM transactions
 			WHERE (category_id = ? OR (? = 'cat_others' AND category_id IS NULL))
-			  AND tx_type = 'DEBIT' AND is_transfer = 0 AND is_excluded = 0
+			  AND tx_type = 'DEBIT' AND is_transfer = 0 AND is_excluded = 0 AND COALESCE(category_id, '') != 'cat_transfers'
 			GROUP BY m
 			ORDER BY m DESC
 			LIMIT 6
@@ -3541,7 +3557,7 @@ func (d *DB) GetCashFlowIntelligence(period string) (*models.CashFlowIntelligenc
 			SELECT cleaned_payee, payment_mode, SUM(amount), COUNT(id)
 			FROM transactions
 			WHERE (category_id = ? OR (? = 'cat_others' AND category_id IS NULL))
-			  AND tx_type = 'DEBIT' AND is_transfer = 0 AND is_excluded = 0 AND %s
+			  AND tx_type = 'DEBIT' AND is_transfer = 0 AND is_excluded = 0 AND COALESCE(category_id, '') != 'cat_transfers' AND %s
 			GROUP BY cleaned_payee, payment_mode
 			ORDER BY SUM(amount) DESC
 			LIMIT 3
@@ -3741,12 +3757,12 @@ func (d *DB) GetWrappedStory(year string) (*models.WrappedStory, error) {
 	statsQuery := fmt.Sprintf(`
 		SELECT 
 			COALESCE(SUM(CASE WHEN tx_type = 'CREDIT' AND is_transfer = 0 AND is_excluded = 0 THEN amount ELSE 0 END), 0) as income,
-			COALESCE(SUM(CASE WHEN tx_type = 'DEBIT' AND is_transfer = 0 AND is_excluded = 0 THEN amount ELSE 0 END), 0) as expense,
-			COUNT(CASE WHEN is_transfer = 0 AND is_excluded = 0 THEN id ELSE NULL END) as total_txs,
-			COUNT(CASE WHEN payment_mode = 'UPI' AND is_transfer = 0 AND is_excluded = 0 THEN id ELSE NULL END) as upi_txs,
-			COUNT(CASE WHEN payment_mode IN ('CARD_POS', 'CARD_ONLINE') AND is_transfer = 0 AND is_excluded = 0 THEN id ELSE NULL END) as card_txs,
-			COALESCE(SUM(CASE WHEN payment_mode = 'UPI' AND tx_type = 'DEBIT' AND is_transfer = 0 AND is_excluded = 0 THEN amount ELSE 0 END), 0) as upi_spend,
-			COALESCE(SUM(CASE WHEN payment_mode IN ('CARD_POS', 'CARD_ONLINE') AND tx_type = 'DEBIT' AND is_transfer = 0 AND is_excluded = 0 THEN amount ELSE 0 END), 0) as card_spend,
+			COALESCE(SUM(CASE WHEN tx_type = 'DEBIT' AND is_transfer = 0 AND is_excluded = 0 AND COALESCE(category_id, '') != 'cat_transfers' THEN amount ELSE 0 END), 0) as expense,
+			COUNT(CASE WHEN is_transfer = 0 AND is_excluded = 0 AND (tx_type != 'DEBIT' OR COALESCE(category_id, '') != 'cat_transfers') THEN id ELSE NULL END) as total_txs,
+			COUNT(CASE WHEN payment_mode = 'UPI' AND is_transfer = 0 AND is_excluded = 0 AND (tx_type != 'DEBIT' OR COALESCE(category_id, '') != 'cat_transfers') THEN id ELSE NULL END) as upi_txs,
+			COUNT(CASE WHEN payment_mode IN ('CARD_POS', 'CARD_ONLINE') AND is_transfer = 0 AND is_excluded = 0 AND (tx_type != 'DEBIT' OR COALESCE(category_id, '') != 'cat_transfers') THEN id ELSE NULL END) as card_txs,
+			COALESCE(SUM(CASE WHEN payment_mode = 'UPI' AND tx_type = 'DEBIT' AND is_transfer = 0 AND is_excluded = 0 AND COALESCE(category_id, '') != 'cat_transfers' THEN amount ELSE 0 END), 0) as upi_spend,
+			COALESCE(SUM(CASE WHEN payment_mode IN ('CARD_POS', 'CARD_ONLINE') AND tx_type = 'DEBIT' AND is_transfer = 0 AND is_excluded = 0 AND COALESCE(category_id, '') != 'cat_transfers' THEN amount ELSE 0 END), 0) as card_spend,
 			COALESCE(SUM(cashback_amount), 0) as cashback,
 			COALESCE(SUM(reward_points_earned), 0) as reward_pts
 		FROM transactions
@@ -3775,7 +3791,7 @@ func (d *DB) GetWrappedStory(year string) (*models.WrappedStory, error) {
 	merchQuery := fmt.Sprintf(`
 		SELECT cleaned_payee, SUM(amount) as spent, COUNT(id) as cnt, payment_mode
 		FROM transactions
-		WHERE tx_type = 'DEBIT' AND is_transfer = 0 AND is_excluded = 0 AND %s
+		WHERE tx_type = 'DEBIT' AND is_transfer = 0 AND is_excluded = 0 AND COALESCE(category_id, '') != 'cat_transfers' AND %s
 		  AND cleaned_payee != '' AND cleaned_payee != 'ATM Cash Withdrawal'
 		GROUP BY cleaned_payee
 		ORDER BY cnt DESC, spent DESC
@@ -3800,7 +3816,7 @@ func (d *DB) GetWrappedStory(year string) (*models.WrappedStory, error) {
 	bigQuery := fmt.Sprintf(`
 		SELECT id, account_id, tx_hash, tx_date, raw_narration, cleaned_payee, payment_mode, reference_number, tx_type, amount
 		FROM transactions
-		WHERE tx_type = 'DEBIT' AND is_transfer = 0 AND is_excluded = 0 AND %s
+		WHERE tx_type = 'DEBIT' AND is_transfer = 0 AND is_excluded = 0 AND COALESCE(category_id, '') != 'cat_transfers' AND %s
 		ORDER BY amount DESC
 		LIMIT 1
 	`, dateFilter)
@@ -3817,7 +3833,7 @@ func (d *DB) GetWrappedStory(year string) (*models.WrappedStory, error) {
 	busyQuery := fmt.Sprintf(`
 		SELECT tx_date, SUM(amount), COUNT(id)
 		FROM transactions
-		WHERE tx_type = 'DEBIT' AND is_transfer = 0 AND is_excluded = 0 AND %s
+		WHERE tx_type = 'DEBIT' AND is_transfer = 0 AND is_excluded = 0 AND COALESCE(category_id, '') != 'cat_transfers' AND %s
 		GROUP BY tx_date
 		ORDER BY SUM(amount) DESC
 		LIMIT 1
@@ -3830,7 +3846,7 @@ func (d *DB) GetWrappedStory(year string) (*models.WrappedStory, error) {
 		SELECT c.id, c.name, c.color_hex, c.icon, SUM(t.amount) as amt, COUNT(t.id) as cnt
 		FROM transactions t
 		JOIN categories c ON t.category_id = c.id
-		WHERE t.tx_type = 'DEBIT' AND t.is_transfer = 0 AND t.is_excluded = 0 AND %s
+		WHERE t.tx_type = 'DEBIT' AND t.is_transfer = 0 AND t.is_excluded = 0 AND COALESCE(t.category_id, '') != 'cat_transfers' AND %s
 		GROUP BY c.id
 		ORDER BY amt DESC
 		LIMIT 5
@@ -4012,7 +4028,6 @@ func (d *DB) GetSalaryInsights() (*models.SalaryInsightsResponse, error) {
 		LEFT JOIN categories c ON t.category_id = c.id
 		WHERE t.tx_type = 'CREDIT' 
 		  AND t.is_excluded = 0
-		  AND t.is_transfer = 0
 		  AND (
 		      t.category_id = 'cat_salary' 
 		      OR t.payment_mode = 'SALARY'

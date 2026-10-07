@@ -91,17 +91,11 @@ func (s *ReconciliationService) ScanAndAutoReconcile() (int, int, error) {
 	}
 
 	autoLinkedCount := 0
-	linkedIDs := make(map[string]bool)
 	for _, c := range candidates {
-		if linkedIDs[c.DebitTx.ID] || linkedIDs[c.CreditTx.ID] {
-			continue
-		}
 		// Auto-link if high confidence (>= 0.85)
 		if c.MatchConfidence >= 0.85 {
 			if err := s.LinkPair(c.DebitTx.ID, c.CreditTx.ID, c.MatchReason); err == nil {
 				autoLinkedCount++
-				linkedIDs[c.DebitTx.ID] = true
-				linkedIDs[c.CreditTx.ID] = true
 			}
 		}
 	}
@@ -182,15 +176,6 @@ func (s *ReconciliationService) getConfirmedPairs() ([]models.TransferPair, erro
 }
 
 func (s *ReconciliationService) getCandidatePairs() ([]models.TransferPair, error) {
-	bankPairs, err := s.getOwnAccountCandidates()
-	if err != nil {
-		return nil, err
-	}
-	cardPairs, err := s.getCreditCardCandidatePairs()
-	return append(bankPairs, cardPairs...), err
-}
-
-func (s *ReconciliationService) getCreditCardCandidatePairs() ([]models.TransferPair, error) {
 	// Query unlinked debits from Savings/Current and unlinked credits from Credit Card accounts
 	debitQuery := `
 		SELECT t.id, t.account_id, a.bank_name || ' (' || a.account_type || ')', t.tx_date, COALESCE(t.raw_narration, ''), COALESCE(t.cleaned_payee, ''), t.amount

@@ -116,7 +116,7 @@ export const ReconcileView: React.FC = () => {
             </Badge>
           </div>
           <p className="text-xs text-muted-foreground mt-1">
-            Pair transfers between your bank accounts and credit card payments. Shared payment references identify bank transfers automatically; missing or ambiguous references require your review.
+            Pair credit card bill payments from your bank with card credits, and exclude wallet load transfers to keep expense analytics accurate.
           </p>
         </div>
 
@@ -175,7 +175,7 @@ export const ReconcileView: React.FC = () => {
               {summary.pending_candidates_count || 0}
             </p>
             <p className="mt-1 text-[11px] text-muted-foreground">
-              Potential unlinked transfers found
+              Potential unlinked bill payments found
             </p>
           </CardContent>
         </Card>
@@ -184,7 +184,7 @@ export const ReconcileView: React.FC = () => {
           <CardContent className="p-5">
             <div className="flex items-center justify-between">
               <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Linked Transfers
+                Linked CC Payments
               </p>
               <div className="rounded-md bg-blue-500/10 p-2 text-blue-500">
                 <ArrowLeftRight className="h-4 w-4" />
@@ -194,7 +194,7 @@ export const ReconcileView: React.FC = () => {
               {summary.total_paired_transfers || 0}
             </p>
             <p className="mt-1 text-[11px] text-muted-foreground">
-              Excluded from income and expenses
+              Marked with is_transfer = 1
             </p>
           </CardContent>
         </Card>
@@ -273,7 +273,7 @@ export const ReconcileView: React.FC = () => {
               </div>
               <h3 className="text-base font-semibold text-foreground">All Set! No Unlinked Bill Payments</h3>
               <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
-                All confirmed transfers have been matched and reconciled.
+                All identified bank debits and credit card bill payment credits have been matched and reconciled.
               </p>
             </Card>
           ) : (
@@ -307,7 +307,7 @@ export const ReconcileView: React.FC = () => {
               </div>
               <h3 className="text-base font-semibold text-foreground">No Linked Transfers Yet</h3>
               <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
-                Click &quot;Scan &amp; Auto-Pair&quot; to detect bank transfers and credit card payments.
+                Click &quot;Scan &amp; Auto-Pair&quot; above to automatically detect credit card bill payment transactions.
               </p>
             </Card>
           ) : (
@@ -418,13 +418,7 @@ const CandidatePairCard: React.FC<{
               }`}
             >
               <Sparkles className="h-3 w-3 mr-1 inline" />
-              {pair.match_reason === 'OWN_ACCOUNT_REFERENCE_MATCH'
-                ? 'Shared payment reference'
-                : pair.match_reason === 'OWN_ACCOUNT_MANUAL_REVIEW'
-                  ? 'Review required: previously unlinked'
-                  : pair.match_reason?.startsWith('OWN_ACCOUNT_')
-                    ? 'Review required: reference missing or ambiguous'
-                    : `${confidencePercent}% Match Confidence`}
+              {confidencePercent}% Match Confidence
             </Badge>
             <span className="text-xs text-muted-foreground font-medium">
               {pair.date_difference_days === 0
@@ -449,7 +443,7 @@ const CandidatePairCard: React.FC<{
           <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-4 space-y-2.5 transition-all group-hover:border-rose-500/40">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-semibold uppercase tracking-wider text-rose-500 flex items-center gap-1.5">
-                <Landmark className="h-3.5 w-3.5" /> Bank Outflow
+                <Landmark className="h-3.5 w-3.5" /> Savings Bank Outflow
               </span>
               <span className="text-xs font-mono text-muted-foreground">{pair.debit_tx.tx_date}</span>
             </div>
@@ -476,7 +470,7 @@ const CandidatePairCard: React.FC<{
           <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-2.5 transition-all group-hover:border-emerald-500/40">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-500 flex items-center gap-1.5">
-                <CreditCard className="h-3.5 w-3.5" /> Account Inflow
+                <CreditCard className="h-3.5 w-3.5" /> Credit Card Bill Credit
               </span>
               <span className="text-xs font-mono text-muted-foreground">{pair.credit_tx.tx_date}</span>
             </div>

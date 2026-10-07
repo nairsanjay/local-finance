@@ -14,7 +14,7 @@ var ErrInvalidReviewPeriod = errors.New("choose a month in YYYY-MM format that i
 
 // Keep review totals and their evidence on exactly the same definition of spending.
 // Credits (including refunds) remain separate until explicit refund linking exists.
-const reviewSpending = `t.tx_type = 'DEBIT' AND t.is_transfer = 0 AND t.is_excluded = 0`
+const reviewSpending = `t.tx_type = 'DEBIT' AND t.is_transfer = 0 AND t.is_excluded = 0 AND COALESCE(t.category_id, '') != 'cat_transfers'`
 
 func reviewPeriods(month string, now time.Time) (models.ReviewPeriod, models.ReviewPeriod, bool, error) {
 	start, err := time.Parse("2006-01", month)
