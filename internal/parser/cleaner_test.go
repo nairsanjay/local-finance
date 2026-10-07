@@ -6,19 +6,19 @@ import (
 	"local-finance/internal/models"
 )
 
-func TestCleanNarrationSelfTransfers(t *testing.T) {
+func TestCleanNarrationPaymentMetadata(t *testing.T) {
 	for _, tc := range []struct {
 		name, narration string
 		mode            models.PaymentMode
 		transfer        bool
 	}{
 		{"plain", "SELF TRANSFER", models.PaymentModeOther, true},
-		{"upi debit", "UPI/DR/123456789012/ALEX/HDFC/alex@okhdfcbank/SELF TRANSFER", models.PaymentModeUPI, true},
-		{"upi credit", "UPI/CR/123456789012/ALEX/HDFC/alex@okhdfcbank/self transfer", models.PaymentModeUPI, true},
-		{"upi hyphen", "UPI-ALEX-alex@okhdfcbank-HDFC-123456789012-SELF TRANSFER", models.PaymentModeUPI, true},
-		{"imps", "IMPS-123456789012-ALEX-SELF TRANSFER", models.PaymentModeIMPS, true},
-		{"neft", "NEFT CR-ABC123-ALEX-SELF TRANSFER", models.PaymentModeNEFT, true},
-		{"rtgs", "RTGS DR-ABC123-ALEX-SELF TRANSFER", models.PaymentModeRTGS, true},
+		{"upi debit", "UPI/DR/123456789012/ALEX/HDFC/alex@okhdfcbank/SELF TRANSFER", models.PaymentModeUPI, false},
+		{"upi credit", "UPI/CR/123456789012/ALEX/HDFC/alex@okhdfcbank/self transfer", models.PaymentModeUPI, false},
+		{"upi hyphen", "UPI-ALEX-alex@okhdfcbank-HDFC-123456789012-SELF TRANSFER", models.PaymentModeUPI, false},
+		{"imps", "IMPS-123456789012-ALEX-SELF TRANSFER", models.PaymentModeIMPS, false},
+		{"neft", "NEFT CR-ABC123-ALEX-SELF TRANSFER", models.PaymentModeNEFT, false},
+		{"rtgs", "RTGS DR-ABC123-ALEX-SELF TRANSFER", models.PaymentModeRTGS, false},
 		{"upi purchase", "UPI/DR/123456789012/SHOP/HDFC/shop@okhdfcbank/PAYMENT", models.PaymentModeUPI, false},
 		{"imps payment", "IMPS-123456789012-ALEX-PAYMENT", models.PaymentModeIMPS, false},
 		{"neft salary", "NEFT CR-ABC123-EMPLOYER-SALARY", models.PaymentModeSalary, false},

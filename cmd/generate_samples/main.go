@@ -85,6 +85,12 @@ func main() {
 	}
 	log.Println("✅ Generated samples/savings/Union_Bank_Savings_Synthetic.pdf")
 
+	// 12. HDFC Self Transfer Statement CSV
+	if err := generateHDFCSelfTransferCSV(filepath.Join(savingsDir, "HDFC_Self_Transfer_Statement.csv")); err != nil {
+		log.Fatalf("Failed to generate HDFC Self Transfer CSV: %v", err)
+	}
+	log.Println("✅ Generated samples/savings/HDFC_Self_Transfer_Statement.csv")
+
 	log.Println("🎉 All masked sample statements created successfully!")
 }
 
@@ -200,6 +206,35 @@ func generateHDFCSavingsCSV(filename string) error {
 		{"10/08/26", "UPI-UBER INDIA-uber.india@hdfcbank-423612345678-RIDE", "423612345678", "10/08/26", "450.00", "", "1,65,145.49"},
 		{"18/08/26", "UPI-SHELL PETROL-shell@icici-423812345678-FUEL", "423812345678", "18/08/26", "3,200.00", "", "1,60,916.49"},
 		{"25/08/26", "UPI-DMART RETAIL-dmart@icici-424112345678-STORE", "424112345678", "25/08/26", "4,250.00", "", "1,56,666.49"},
+	}
+
+	for _, row := range rows {
+		if err := w.Write(row); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// -----------------------------------------------------------------------------
+// 2b. HDFC Self Transfer Statement CSV
+// -----------------------------------------------------------------------------
+func generateHDFCSelfTransferCSV(filename string) error {
+	file, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	w := csv.NewWriter(file)
+	defer w.Flush()
+
+	rows := [][]string{
+		{"Date", "Narration", "Chq/Ref", "Value Dt", "Withdrawal", "Deposit", "Closing Balance"},
+		{"01/04/2026", "NEFT CR-ABC123-EMPLOYER-SALARY", "ABC123", "01/04/2026", "", "1000", "1000"},
+		{"02/04/2026", "UPI-ALEX-alex@okhdfcbank-HDFC-123456789012-SELF TRANSFER", "DEMO123", "02/04/2026", "500", "", "500"},
+		{"03/04/2026", "UPI/CR/123456789013/ALEX/HDFC/alex@okhdfcbank/SELF TRANSFER", "DEMO124", "03/04/2026", "", "500", "1000"},
+		{"04/04/2026", "UPI-SHOP-shop@okhdfcbank-HDFC-123456789014-PAYMENT", "123456789014", "04/04/2026", "100", "", "900"},
 	}
 
 	for _, row := range rows {
