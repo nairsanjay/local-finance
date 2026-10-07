@@ -1,8 +1,7 @@
 -- +goose Up
--- Older payment-specific narration parsing could miss this explicit marker.
-UPDATE transactions
-SET is_transfer = 1
-WHERE is_transfer = 0 AND INSTR(UPPER(raw_narration), 'SELF TRANSFER') > 0;
+-- Retain the published version for databases that already applied it.
+-- Category-based expense calculations no longer require rewriting ledger flags.
+SELECT 1;
 
 -- +goose Down
 -- Keep corrected flags: clearing them could undo user-confirmed transfers.

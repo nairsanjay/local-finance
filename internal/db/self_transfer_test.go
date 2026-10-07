@@ -8,7 +8,7 @@ import (
 	"local-finance/internal/models"
 )
 
-func TestMigrationMarksExistingSelfTransfers(t *testing.T) {
+func TestRetiredSelfTransferMigrationPreservesLedger(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "ledger.db")
 	database, err := NewDB(path)
 	if err != nil {
@@ -56,8 +56,8 @@ func TestMigrationMarksExistingSelfTransfers(t *testing.T) {
 		t.Fatalf("transaction count=%d, err=%v", count, err)
 	}
 	for _, tx := range transactions {
-		if tx.IsTransfer != (tx.TxHash != "purchase") {
-			t.Errorf("incorrect transfer flag for %s: %v", tx.ID, tx.IsTransfer)
+		if tx.IsTransfer {
+			t.Errorf("retired migration changed transfer flag for %s", tx.ID)
 		}
 		if originalIDs[tx.TxHash] != tx.ID || !tx.IsManualCategory || tx.CategoryID == nil || *tx.CategoryID != category || tx.Notes != notes || tx.Tags != tags {
 			t.Errorf("migration changed transaction identity or user edits: %+v", tx)
@@ -67,7 +67,7 @@ func TestMigrationMarksExistingSelfTransfers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if overview.TotalIncome != 0 || overview.TotalExpense != 100 {
-		t.Fatalf("existing self transfers still affect totals: %+v", overview)
+	if overview.TotalIncome != 100 || overview.TotalExpense != 200 {
+		t.Fatalf("retired migration changed uncategorized spending: %+v", overview)
 	}
 }

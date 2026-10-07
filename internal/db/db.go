@@ -1489,7 +1489,7 @@ func (d *DB) GetAnalyticsOverview() (*models.AnalyticsOverview, error) {
 	err := d.conn.QueryRow(`
 		SELECT 
 			SUM(CASE WHEN tx_type = 'CREDIT' THEN amount ELSE 0 END),
-			SUM(CASE WHEN tx_type = 'DEBIT' THEN amount ELSE 0 END)
+			SUM(CASE WHEN tx_type = 'DEBIT' AND ` + expenseCategoryFilter("") + ` THEN amount ELSE 0 END)
 		FROM transactions
 		WHERE is_transfer = 0 AND is_excluded = 0
 	`).Scan(&totalIncome, &totalExpense)
@@ -1523,7 +1523,7 @@ func (d *DB) GetAnalyticsOverview() (*models.AnalyticsOverview, error) {
 			COUNT(t.id) as tx_count
 		FROM transactions t
 		LEFT JOIN categories c ON t.category_id = c.id
-		WHERE t.tx_type = 'DEBIT' AND t.is_transfer = 0 AND t.is_excluded = 0
+		WHERE ` + spendingFilter("t") + `
 		GROUP BY cat_id, cat_name, color_hex, icon
 		ORDER BY total_amount DESC
 	`)
@@ -1545,7 +1545,7 @@ func (d *DB) GetAnalyticsOverview() (*models.AnalyticsOverview, error) {
 		SELECT 
 			strftime('%Y-%m', tx_date) as month,
 			SUM(CASE WHEN tx_type = 'CREDIT' THEN amount ELSE 0 END) as income,
-			SUM(CASE WHEN tx_type = 'DEBIT' THEN amount ELSE 0 END) as expense
+			SUM(CASE WHEN tx_type = 'DEBIT' AND ` + expenseCategoryFilter("") + ` THEN amount ELSE 0 END) as expense
 		FROM transactions
 		WHERE is_transfer = 0 AND is_excluded = 0
 		GROUP BY month
@@ -1571,7 +1571,7 @@ func (d *DB) GetAnalyticsOverview() (*models.AnalyticsOverview, error) {
 			SUM(amount) as total_spent,
 			COUNT(id) as tx_count
 		FROM transactions
-		WHERE tx_type = 'DEBIT' AND cleaned_payee != '' AND is_transfer = 0 AND is_excluded = 0
+		WHERE ` + spendingFilter("") + ` AND cleaned_payee != ''
 		GROUP BY cleaned_payee, payment_mode
 		ORDER BY total_spent DESC
 		LIMIT 10
@@ -2240,7 +2240,7 @@ func (d *DB) GetCardPortfolioOverview() (*models.CardPortfolioOverview, error) {
 		_ = d.conn.QueryRow(`
 			SELECT COALESCE(SUM(amount), 0)
 			FROM transactions
-			WHERE account_id = ? AND tx_type = 'DEBIT' AND strftime('%Y', tx_date) = ? AND is_transfer = 0 AND is_excluded = 0
+			WHERE account_id = ? AND ` + spendingFilter("") + ` AND strftime('%Y', tx_date) = ?
 		`, r.a.ID, fmt.Sprintf("%d", currentYear)).Scan(&ytdSpend)
 		cd.TotalSpendThisYear = ytdSpend
 
@@ -2449,7 +2449,7 @@ func (d *DB) GetCategoryBudgetSummary(monthStr string) (*models.BudgetSummary, e
 		_ = d.conn.QueryRow(`
 			SELECT COALESCE(SUM(amount), 0)
 			FROM transactions
-			WHERE category_id = ? AND tx_type = 'DEBIT' AND is_transfer = 0 AND is_excluded = 0 AND strftime('%Y-%m', tx_date) = ?
+			WHERE category_id = ? AND ` + spendingFilter("") + ` AND strftime('%Y-%m', tx_date) = ?
 		`, c.ID, monthStr).Scan(&spend)
 
 		// Calculate metrics
@@ -2750,10 +2750,10 @@ func (d *DB) ListMerchants(search, category, sortBy string) (*models.MerchantLis
 			COALESCE(c.name, 'Uncategorized') as category_name,
 			COALESCE(c.color_hex, '#64748B') as category_color,
 			COALESCE(c.icon, '') as category_icon,
-			COALESCE(SUM(CASE WHEN t.tx_type = 'DEBIT' THEN t.amount ELSE 0 END), 0) as total_spend,
+			COALESCE(SUM(CASE WHEN t.tx_type = 'DEBIT' AND ` + expenseCategoryFilter("t") + ` THEN t.amount ELSE 0 END), 0) as total_spend,
 			COALESCE(SUM(CASE WHEN t.tx_type = 'CREDIT' THEN t.amount ELSE 0 END), 0) as total_credits,
 			COUNT(t.id) as tx_count,
-			COALESCE(AVG(CASE WHEN t.tx_type = 'DEBIT' THEN t.amount ELSE NULL END), 0) as average_order_value,
+			COALESCE(AVG(CASE WHEN t.tx_type = 'DEBIT' AND ` + expenseCategoryFilter("t") + ` THEN t.amount ELSE NULL END), 0) as average_order_value,
 			MIN(t.tx_date) as first_tx_date,
 			MAX(t.tx_date) as last_tx_date,
 			COALESCE(
@@ -2849,12 +2849,12 @@ func (d *DB) GetMerchantProfile(payeeName string) (*models.MerchantProfile, erro
 			COALESCE(c.name, 'Uncategorized'),
 			COALESCE(c.color_hex, '#64748B'),
 			COALESCE(c.icon, ''),
-			COALESCE(SUM(CASE WHEN t.tx_type = 'DEBIT' THEN t.amount ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN t.tx_type = 'DEBIT' AND ` + expenseCategoryFilter("t") + ` THEN t.amount ELSE 0 END), 0),
 			COALESCE(SUM(CASE WHEN t.tx_type = 'CREDIT' THEN t.amount ELSE 0 END), 0),
 			COUNT(t.id),
 			COALESCE(SUM(CASE WHEN t.tx_type = 'DEBIT' THEN 1 ELSE 0 END), 0),
 			COALESCE(SUM(CASE WHEN t.tx_type = 'CREDIT' THEN 1 ELSE 0 END), 0),
-			COALESCE(AVG(CASE WHEN t.tx_type = 'DEBIT' THEN t.amount ELSE NULL END), 0),
+			COALESCE(AVG(CASE WHEN t.tx_type = 'DEBIT' AND ` + expenseCategoryFilter("t") + ` THEN t.amount ELSE NULL END), 0),
 			MIN(t.tx_date),
 			MAX(t.tx_date)
 		FROM transactions t
@@ -2896,7 +2896,7 @@ func (d *DB) GetMerchantProfile(payeeName string) (*models.MerchantProfile, erro
 			COUNT(t.id) as cnt
 		FROM transactions t
 		JOIN accounts a ON t.account_id = a.id
-		WHERE t.cleaned_payee = ? AND t.tx_type = 'DEBIT'
+		WHERE t.cleaned_payee = ? AND t.tx_type = 'DEBIT' AND ` + expenseCategoryFilter("t") + `
 		GROUP BY acc_name
 		ORDER BY spend DESC
 	`, payeeName)
@@ -2932,7 +2932,7 @@ func (d *DB) GetMerchantProfile(payeeName string) (*models.MerchantProfile, erro
 			COALESCE(SUM(amount), 0),
 			COUNT(id)
 		FROM transactions
-		WHERE cleaned_payee = ? AND tx_type = 'DEBIT'
+		WHERE cleaned_payee = ? AND tx_type = 'DEBIT' AND ` + expenseCategoryFilter("") + `
 		GROUP BY m
 		ORDER BY m ASC
 	`, payeeName)
@@ -3157,7 +3157,7 @@ func (d *DB) GetCashFlowIntelligence(period string) (*models.CashFlowIntelligenc
 		FROM transactions t
 		JOIN accounts a ON t.account_id = a.id
 		LEFT JOIN categories c ON t.category_id = c.id
-		WHERE t.tx_type = 'DEBIT' AND t.is_transfer = 0 AND t.is_excluded = 0 AND %s
+		WHERE ` + spendingFilter("t") + ` AND %s
 	`, dateClause)
 
 	debitRows, err := d.conn.Query(outflowQuery, dateArgs...)
@@ -3482,7 +3482,7 @@ func (d *DB) GetCashFlowIntelligence(period string) (*models.CashFlowIntelligenc
 		prevRows, err := d.conn.Query(`
 			SELECT COALESCE(category_id, 'cat_others'), SUM(amount)
 			FROM transactions
-			WHERE tx_type = 'DEBIT' AND is_transfer = 0 AND is_excluded = 0
+			WHERE ` + spendingFilter("") + `
 			  AND tx_date >= ? AND tx_date <= ?
 			GROUP BY category_id
 		`, res.PreviousMonth+"-01", res.PreviousMonth+"-31")
@@ -3523,7 +3523,7 @@ func (d *DB) GetCashFlowIntelligence(period string) (*models.CashFlowIntelligenc
 			SELECT strftime('%Y-%m', tx_date) as m, COALESCE(SUM(amount), 0)
 			FROM transactions
 			WHERE (category_id = ? OR (? = 'cat_others' AND category_id IS NULL))
-			  AND tx_type = 'DEBIT' AND is_transfer = 0 AND is_excluded = 0
+			  AND ` + spendingFilter("") + `
 			GROUP BY m
 			ORDER BY m DESC
 			LIMIT 6
@@ -3554,7 +3554,7 @@ func (d *DB) GetCashFlowIntelligence(period string) (*models.CashFlowIntelligenc
 			SELECT cleaned_payee, payment_mode, SUM(amount), COUNT(id)
 			FROM transactions
 			WHERE (category_id = ? OR (? = 'cat_others' AND category_id IS NULL))
-			  AND tx_type = 'DEBIT' AND is_transfer = 0 AND is_excluded = 0 AND %s
+			  AND ` + spendingFilter("") + ` AND %s
 			GROUP BY cleaned_payee, payment_mode
 			ORDER BY SUM(amount) DESC
 			LIMIT 3
@@ -3754,12 +3754,12 @@ func (d *DB) GetWrappedStory(year string) (*models.WrappedStory, error) {
 	statsQuery := fmt.Sprintf(`
 		SELECT 
 			COALESCE(SUM(CASE WHEN tx_type = 'CREDIT' AND is_transfer = 0 AND is_excluded = 0 THEN amount ELSE 0 END), 0) as income,
-			COALESCE(SUM(CASE WHEN tx_type = 'DEBIT' AND is_transfer = 0 AND is_excluded = 0 THEN amount ELSE 0 END), 0) as expense,
+			COALESCE(SUM(CASE WHEN ` + spendingFilter("") + ` THEN amount ELSE 0 END), 0) as expense,
 			COUNT(CASE WHEN is_transfer = 0 AND is_excluded = 0 THEN id ELSE NULL END) as total_txs,
 			COUNT(CASE WHEN payment_mode = 'UPI' AND is_transfer = 0 AND is_excluded = 0 THEN id ELSE NULL END) as upi_txs,
 			COUNT(CASE WHEN payment_mode IN ('CARD_POS', 'CARD_ONLINE') AND is_transfer = 0 AND is_excluded = 0 THEN id ELSE NULL END) as card_txs,
-			COALESCE(SUM(CASE WHEN payment_mode = 'UPI' AND tx_type = 'DEBIT' AND is_transfer = 0 AND is_excluded = 0 THEN amount ELSE 0 END), 0) as upi_spend,
-			COALESCE(SUM(CASE WHEN payment_mode IN ('CARD_POS', 'CARD_ONLINE') AND tx_type = 'DEBIT' AND is_transfer = 0 AND is_excluded = 0 THEN amount ELSE 0 END), 0) as card_spend,
+			COALESCE(SUM(CASE WHEN payment_mode = 'UPI' AND ` + spendingFilter("") + ` THEN amount ELSE 0 END), 0) as upi_spend,
+			COALESCE(SUM(CASE WHEN payment_mode IN ('CARD_POS', 'CARD_ONLINE') AND ` + spendingFilter("") + ` THEN amount ELSE 0 END), 0) as card_spend,
 			COALESCE(SUM(cashback_amount), 0) as cashback,
 			COALESCE(SUM(reward_points_earned), 0) as reward_pts
 		FROM transactions
@@ -3788,7 +3788,7 @@ func (d *DB) GetWrappedStory(year string) (*models.WrappedStory, error) {
 	merchQuery := fmt.Sprintf(`
 		SELECT cleaned_payee, SUM(amount) as spent, COUNT(id) as cnt, payment_mode
 		FROM transactions
-		WHERE tx_type = 'DEBIT' AND is_transfer = 0 AND is_excluded = 0 AND %s
+		WHERE ` + spendingFilter("") + ` AND %s
 		  AND cleaned_payee != '' AND cleaned_payee != 'ATM Cash Withdrawal'
 		GROUP BY cleaned_payee
 		ORDER BY cnt DESC, spent DESC
@@ -3813,7 +3813,7 @@ func (d *DB) GetWrappedStory(year string) (*models.WrappedStory, error) {
 	bigQuery := fmt.Sprintf(`
 		SELECT id, account_id, tx_hash, tx_date, raw_narration, cleaned_payee, payment_mode, reference_number, tx_type, amount
 		FROM transactions
-		WHERE tx_type = 'DEBIT' AND is_transfer = 0 AND is_excluded = 0 AND %s
+		WHERE ` + spendingFilter("") + ` AND %s
 		ORDER BY amount DESC
 		LIMIT 1
 	`, dateFilter)
@@ -3830,7 +3830,7 @@ func (d *DB) GetWrappedStory(year string) (*models.WrappedStory, error) {
 	busyQuery := fmt.Sprintf(`
 		SELECT tx_date, SUM(amount), COUNT(id)
 		FROM transactions
-		WHERE tx_type = 'DEBIT' AND is_transfer = 0 AND is_excluded = 0 AND %s
+		WHERE ` + spendingFilter("") + ` AND %s
 		GROUP BY tx_date
 		ORDER BY SUM(amount) DESC
 		LIMIT 1
@@ -3843,7 +3843,7 @@ func (d *DB) GetWrappedStory(year string) (*models.WrappedStory, error) {
 		SELECT c.id, c.name, c.color_hex, c.icon, SUM(t.amount) as amt, COUNT(t.id) as cnt
 		FROM transactions t
 		JOIN categories c ON t.category_id = c.id
-		WHERE t.tx_type = 'DEBIT' AND t.is_transfer = 0 AND t.is_excluded = 0 AND %s
+		WHERE ` + spendingFilter("t") + ` AND %s
 		GROUP BY c.id
 		ORDER BY amt DESC
 		LIMIT 5
