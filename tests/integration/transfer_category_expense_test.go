@@ -1,66 +1,12 @@
 package integration_test
 
 import (
-	"path/filepath"
 	"testing"
 	"time"
 
 	"local-finance/internal/db"
 	"local-finance/internal/models"
 )
-
-func TestDetectedTransfersUseTransferCategoryAndPreserveManualOverrides(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "transfers.db")
-	database, err := db.NewDB(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	account, err := database.GetOrCreateAccount("Test Bank", models.AccountTypeSavings, "", "XX1001", "", "", "", "", "", "", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	other := "cat_others"
-	for _, manual := range []bool{false, true} {
-		hash := "automatic"
-		if manual {
-			hash = "manual"
-		}
-		tx := &models.Transaction{AccountID: account.ID, TxHash: hash, TxDate: "2026-04-01", TxType: models.TxTypeDebit, Amount: 500, IsTransfer: true, IsManualCategory: manual, CategoryID: &other, Notes: "keep note"}
-		if _, err := database.UpsertTransaction(tx); err != nil {
-			t.Fatal(err)
-		}
-		want := "cat_transfers"
-		if manual {
-			want = other
-		}
-		if tx.CategoryID == nil || *tx.CategoryID != want {
-			t.Fatalf("category: %+v", tx)
-		}
-	}
-	// Simulate transfers flagged by an older version before reopening the app.
-	if _, err := database.Exec("UPDATE transactions SET category_id='cat_others' WHERE tx_hash='automatic'"); err != nil {
-		t.Fatal(err)
-	}
-	database.Close()
-	database, err = db.NewDB(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer database.Close()
-	rows, _, err := database.ListTransactions(db.TransactionFilter{Limit: 10})
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, row := range rows {
-		want := "cat_transfers"
-		if row.TxHash == "manual" {
-			want = other
-		}
-		if row.CategoryID == nil || *row.CategoryID != want || row.Notes != "keep note" {
-			t.Fatalf("existing transfer classification lost: %+v", row)
-		}
-	}
-}
 
 func TestTransferCategoryExcludedFromSpending(t *testing.T) {
 	database := testDatabase(t)

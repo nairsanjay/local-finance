@@ -484,10 +484,6 @@ func (s *TransactionService) calculateTxHash(accountID, date string, amount floa
 
 func (s *TransactionService) matchCategory(pt parser.ParsedTransaction, rules []models.CategorizationRule) *string {
 	if pt.IsTransfer {
-		category := "cat_transfers"
-		return &category
-	}
-	if pt.IsTransfer {
 		transferCat := "cat_transfers"
 		return &transferCat
 	}

@@ -8,15 +8,7 @@ func expenseCategoryFilter(alias string) string {
 	if alias != "" {
 		alias += "."
 	}
-	return fmt.Sprintf("(%stx_type != 'DEBIT' OR COALESCE(%scategory_id, '') != 'cat_transfers')", alias, alias)
-}
-
-func analyticsFilter(alias string) string {
-	prefix := ""
-	if alias != "" {
-		prefix = alias + "."
-	}
-	return prefix + "is_transfer = 0 AND " + prefix + "is_excluded = 0 AND " + expenseCategoryFilter(alias)
+	return fmt.Sprintf("COALESCE(%scategory_id, '') != 'cat_transfers'", alias)
 }
 
 func spendingFilter(alias string) string {
@@ -24,20 +16,5 @@ func spendingFilter(alias string) string {
 	if alias != "" {
 		prefix = alias + "."
 	}
-	return prefix + "tx_type = 'DEBIT' AND " + analyticsFilter(alias)
-}
-
-func automaticTransferCategory(transfer, manual bool, category *string) *string {
-	if transfer && !manual {
-		id := "cat_transfers"
-		return &id
-	}
-	return category
-}
-
-func (d *DB) categorizeDetectedTransfers() error {
-	_, err := d.conn.Exec(`UPDATE transactions SET category_id = 'cat_transfers'
-		WHERE is_transfer = 1 AND COALESCE(is_manual_category, 0) = 0
-		AND COALESCE(category_id, '') != 'cat_transfers'`)
-	return err
+	return prefix + "tx_type = 'DEBIT' AND " + prefix + "is_transfer = 0 AND " + prefix + "is_excluded = 0 AND " + expenseCategoryFilter(alias)
 }

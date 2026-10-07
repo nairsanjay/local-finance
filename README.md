@@ -39,9 +39,6 @@
 - **Duplicate Detection & Smart Upsert**:
   - Deterministic `SHA-256` transaction hashing prevents duplicates when uploading overlapping statement periods.
   - Idempotent SQLite upserts (`ON CONFLICT`) safely update balances while **strictly preserving** your custom category overrides, notes, and tags.
-- **Transfer spending**:
-  - Transactions categorized as **Self / P2P Transfers** are excluded from expense totals, charts, budgets, and spending reports, including payments to other people in that category.
-  - Automatically detected transfers use this category. Existing records are updated on startup while manual category overrides are preserved.
 - **Optional Local Security / Password Protection**:
   - Protect local database access with an optional PIN/password stored with PBKDF2/argon2 hashing, complete with automatic lock timeout.
 - **Built-in Release Checks & Updates**:
