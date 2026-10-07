@@ -451,6 +451,7 @@ export const TransactionTable: React.FC = () => {
     let debits = 0
     let credits = 0
     filteredItems.forEach((tx) => {
+      if (tx.is_transfer || tx.is_excluded || tx.category_id === 'cat_transfers') return
       if (tx.tx_type === 'DEBIT') debits += tx.amount
       else if (tx.tx_type === 'CREDIT') credits += tx.amount
     })
