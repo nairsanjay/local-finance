@@ -61,7 +61,8 @@ func (s *ReconciliationService) getOwnAccountCandidates() ([]models.TransferPair
 		SELECT d.id, d.account_id, da.bank_name || ' (' || da.account_type || ')',
 		 d.tx_date, COALESCE(d.raw_narration,''), COALESCE(d.cleaned_payee,''), d.amount, COALESCE(d.reference_number,''),
 		 c.id, c.account_id, ca.bank_name || ' (' || ca.account_type || ')',
-		 c.tx_date, COALESCE(c.raw_narration,''), COALESCE(c.cleaned_payee,''), c.amount, COALESCE(c.reference_number,'')
+		 c.tx_date, COALESCE(c.raw_narration,''), COALESCE(c.cleaned_payee,''), c.amount, COALESCE(c.reference_number,''),
+		 COALESCE(d.transfer_match_reason,'') = 'MANUALLY_UNLINKED' OR COALESCE(c.transfer_match_reason,'') = 'MANUALLY_UNLINKED'
 		FROM transactions d
 		JOIN transactions c ON c.account_id != d.account_id AND c.tx_type = 'CREDIT'
 		 AND ROUND(c.amount * 100) = ROUND(d.amount * 100)
@@ -82,10 +83,11 @@ func (s *ReconciliationService) getOwnAccountCandidates() ([]models.TransferPair
 	debitMatches, creditMatches := map[string]int{}, map[string]int{}
 	for rows.Next() {
 		var p models.TransferPair
+		var manuallyUnlinked bool
 		if err := rows.Scan(&p.DebitTx.ID, &p.DebitTx.AccountID, &p.DebitTx.AccountName,
 			&p.DebitTx.TxDate, &p.DebitTx.RawNarration, &p.DebitTx.CleanedPayee, &p.DebitTx.Amount, &p.DebitTx.ReferenceNumber,
 			&p.CreditTx.ID, &p.CreditTx.AccountID, &p.CreditTx.AccountName,
-			&p.CreditTx.TxDate, &p.CreditTx.RawNarration, &p.CreditTx.CleanedPayee, &p.CreditTx.Amount, &p.CreditTx.ReferenceNumber); err != nil {
+			&p.CreditTx.TxDate, &p.CreditTx.RawNarration, &p.CreditTx.CleanedPayee, &p.CreditTx.Amount, &p.CreditTx.ReferenceNumber, &manuallyUnlinked); err != nil {
 			return nil, err
 		}
 		dRef, cRef := transferReference(p.DebitTx), transferReference(p.CreditTx)
@@ -100,6 +102,10 @@ func (s *ReconciliationService) getOwnAccountCandidates() ([]models.TransferPair
 			p.MatchReason = "OWN_ACCOUNT_REFERENCE_MATCH"
 			debitMatches[p.DebitTx.ID]++
 			creditMatches[p.CreditTx.ID]++
+		}
+		if manuallyUnlinked {
+			p.MatchConfidence = 0.65
+			p.MatchReason = "OWN_ACCOUNT_MANUAL_REVIEW"
 		}
 		dDate, dErr := parseDate(p.DebitTx.TxDate)
 		cDate, cErr := parseDate(p.CreditTx.TxDate)

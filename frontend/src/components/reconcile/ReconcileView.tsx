@@ -175,7 +175,7 @@ export const ReconcileView: React.FC = () => {
               {summary.pending_candidates_count || 0}
             </p>
             <p className="mt-1 text-[11px] text-muted-foreground">
-              Potential unlinked bill payments found
+              Potential unlinked transfers found
             </p>
           </CardContent>
         </Card>
@@ -184,7 +184,7 @@ export const ReconcileView: React.FC = () => {
           <CardContent className="p-5">
             <div className="flex items-center justify-between">
               <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Linked CC Payments
+                Linked Transfers
               </p>
               <div className="rounded-md bg-blue-500/10 p-2 text-blue-500">
                 <ArrowLeftRight className="h-4 w-4" />
@@ -194,7 +194,7 @@ export const ReconcileView: React.FC = () => {
               {summary.total_paired_transfers || 0}
             </p>
             <p className="mt-1 text-[11px] text-muted-foreground">
-              Marked with is_transfer = 1
+              Excluded from income and expenses
             </p>
           </CardContent>
         </Card>
@@ -420,9 +420,11 @@ const CandidatePairCard: React.FC<{
               <Sparkles className="h-3 w-3 mr-1 inline" />
               {pair.match_reason === 'OWN_ACCOUNT_REFERENCE_MATCH'
                 ? 'Shared payment reference'
-                : pair.match_reason?.startsWith('OWN_ACCOUNT_')
-                  ? 'Review required: reference missing or ambiguous'
-                  : `${confidencePercent}% Match Confidence`}
+                : pair.match_reason === 'OWN_ACCOUNT_MANUAL_REVIEW'
+                  ? 'Review required: previously unlinked'
+                  : pair.match_reason?.startsWith('OWN_ACCOUNT_')
+                    ? 'Review required: reference missing or ambiguous'
+                    : `${confidencePercent}% Match Confidence`}
             </Badge>
             <span className="text-xs text-muted-foreground font-medium">
               {pair.date_difference_days === 0

@@ -114,6 +114,17 @@ func TestOwnAccountReferenceMatching(t *testing.T) {
 				if !flag || hash != debit.TxHash || note != "keep note" || tags != "keep tag" {
 					t.Fatal("reimport lost transfer or user data")
 				}
+				if err := svc.UnlinkPair(debit.ID); err != nil {
+					t.Fatal(err)
+				}
+				count, err := svc.ReconcileOwnAccountTransfers()
+				if err != nil || count != 0 {
+					t.Fatalf("manual unlink undone: %d %v", count, err)
+				}
+				pairs, err := svc.getOwnAccountCandidates()
+				if err != nil || len(pairs) != 1 || pairs[0].MatchReason != "OWN_ACCOUNT_MANUAL_REVIEW" {
+					t.Fatalf("manual review lost: %+v %v", pairs, err)
+				}
 			}
 			if tc.name == "name alone" || tc.ambiguous || tc.name == "missing one reference" {
 				pairs, err := svc.getOwnAccountCandidates()

@@ -2661,7 +2661,7 @@ func (d *DB) UnlinkTransferPair(txID string) error {
 
 	_, err = tx.Exec(`
 		UPDATE transactions 
-		SET is_transfer = 0, transfer_peer_id = NULL, transfer_match_reason = NULL 
+		SET is_transfer = 0, transfer_peer_id = NULL, transfer_match_reason = 'MANUALLY_UNLINKED'
 		WHERE id = ?
 	`, txID)
 	if err != nil {
@@ -2671,7 +2671,7 @@ func (d *DB) UnlinkTransferPair(txID string) error {
 	if peerID.Valid && peerID.String != "" {
 		_, err = tx.Exec(`
 			UPDATE transactions 
-			SET is_transfer = 0, transfer_peer_id = NULL, transfer_match_reason = NULL 
+			SET is_transfer = 0, transfer_peer_id = NULL, transfer_match_reason = 'MANUALLY_UNLINKED'
 			WHERE id = ?
 		`, peerID.String)
 		if err != nil {
