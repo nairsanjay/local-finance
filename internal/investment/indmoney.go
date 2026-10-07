@@ -13,6 +13,10 @@ import (
 // INDmoney's US holdings export reports current values, without acquisition costs.
 type INDmoneyHoldingsParser struct{}
 
+func init() {
+	DefaultRegistry.Register(INDmoneyHoldingsParser{})
+}
+
 func (INDmoneyHoldingsParser) ID() string { return "indmoney_us_holdings_xls_v1" }
 func (INDmoneyHoldingsParser) Info() ParserInfo {
 	return ParserInfo{Provider: "INDmoney", Name: "US stock holdings export", Extensions: []string{".xls"}}

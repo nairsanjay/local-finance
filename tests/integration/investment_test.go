@@ -189,8 +189,21 @@ func TestInvestmentAPI(t *testing.T) {
 		Parsers []investment.ParserInfo `json:"parsers"`
 		MaxSize int                     `json:"max_file_size"`
 	}
-	if err := json.Unmarshal(w.Body.Bytes(), &formats); err != nil || w.Code != 200 || len(formats.Parsers) != 2 || formats.Parsers[0].Extensions[0] != ".xlsx" || formats.Parsers[1].Provider != "INDmoney" || formats.Parsers[1].Extensions[0] != ".xls" || formats.MaxSize != service.MaxInvestmentFileSize {
+	if err := json.Unmarshal(w.Body.Bytes(), &formats); err != nil || w.Code != 200 || formats.MaxSize != service.MaxInvestmentFileSize {
 		t.Fatal("invalid format discovery", err)
+	}
+	byID := make(map[string]investment.ParserInfo)
+	for _, format := range formats.Parsers {
+		byID[format.ID] = format
+	}
+	for id, expected := range map[string]investment.ParserInfo{
+		"zerodha_holdings_xlsx_v1":    {Provider: "Zerodha", Extensions: []string{".xlsx"}},
+		"indmoney_us_holdings_xls_v1": {Provider: "INDmoney", Extensions: []string{".xls"}},
+	} {
+		format := byID[id]
+		if format.Provider != expected.Provider || len(format.Extensions) != 1 || format.Extensions[0] != expected.Extensions[0] {
+			t.Fatalf("missing format %s: %+v", id, format)
+		}
 	}
 	w = upload("/api/investments/preview", investmentWorkbook(t, nil))
 	if w.Code != 200 {

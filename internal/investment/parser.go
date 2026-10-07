@@ -6,6 +6,8 @@ import (
 	"local-finance/internal/models"
 )
 
+// Parser adapts one provider's export into the shared portfolio model.
+// Adapters register themselves with DefaultRegistry from their init function.
 type Parser interface {
 	ID() string
 	Info() ParserInfo
@@ -23,8 +25,27 @@ type ParserInfo struct {
 
 type Registry struct{ parsers []Parser }
 
-func NewRegistry() *Registry          { return &Registry{} }
-func (r *Registry) Register(p Parser) { r.parsers = append(r.parsers, p) }
+func NewRegistry() *Registry { return &Registry{} }
+
+// Register replaces an adapter with the same stable ID, as the bank registry does.
+func (r *Registry) Register(p Parser) {
+	for i, existing := range r.parsers {
+		if existing.ID() == p.ID() {
+			r.parsers[i] = p
+			return
+		}
+	}
+	r.parsers = append(r.parsers, p)
+}
+
+func (r *Registry) Get(id string) (Parser, bool) {
+	for _, p := range r.parsers {
+		if p.ID() == id {
+			return p, true
+		}
+	}
+	return nil, false
+}
 func (r *Registry) List() []ParserInfo {
 	result := make([]ParserInfo, 0, len(r.parsers))
 	for _, p := range r.parsers {
@@ -59,9 +80,4 @@ func (r *Registry) Parse(filename string, data []byte) (*models.InvestmentSnapsh
 	return result, nil
 }
 
-var DefaultRegistry = func() *Registry {
-	r := NewRegistry()
-	r.Register(ZerodhaHoldingsParser{})
-	r.Register(INDmoneyHoldingsParser{})
-	return r
-}()
+var DefaultRegistry = NewRegistry()

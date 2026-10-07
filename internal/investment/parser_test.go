@@ -32,3 +32,21 @@ func TestRegistryAcceptsIndependentProvider(t *testing.T) {
 		t.Fatal("ambiguous statement accepted")
 	}
 }
+
+func TestRegistrationReplacesSameFormat(t *testing.T) {
+	r := NewRegistry()
+	r.Register(demoParser{id: "example_csv_v1"})
+	r.Register(demoParser{id: "example_csv_v1"})
+	if len(r.List()) != 1 {
+		t.Fatal("duplicate registration exposed duplicate formats")
+	}
+	if _, err := r.Parse("demo.csv", nil); err != nil {
+		t.Fatalf("duplicate registration made detection ambiguous: %v", err)
+	}
+	if p, ok := r.Get("example_csv_v1"); !ok || p.ID() != "example_csv_v1" {
+		t.Fatal("registered parser cannot be retrieved")
+	}
+	if _, ok := r.Get("missing"); ok {
+		t.Fatal("missing parser found")
+	}
+}

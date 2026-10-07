@@ -461,6 +461,20 @@ func (p *SBISavingsCSVParser) Parse(r io.Reader, opts ParseOptions) ([]ParsedTra
 
 ---
 
+## Adding an Investment Parser
+
+Investment imports follow the same adapter-and-registry pattern as bank statements. Each provider implements `investment.Parser` in `internal/investment/<provider>_<format>.go` and registers itself locally:
+
+```go
+func init() {
+	DefaultRegistry.Register(ExampleHoldingsParser{})
+}
+```
+
+Implement `ID()` with a stable, versioned format ID; `Info()` with the provider name, format label, and supported extensions; `CanParse(filename, data)` to identify the export from its contents; and `Parse(data)` to return the common `models.InvestmentSnapshot`. Supply provider, account reference, statement date (`YYYY-MM-DD`), currency, and holdings. Keep unavailable cost or return values nil, preserve provider-specific fields in `Fields`, and retain original worksheets in `Sheets` when applicable. Use the shared workbook helpers rather than depending on another provider's adapter.
+
+The registry rejects unsupported files and files recognized by multiple adapters. Its metadata drives `/api/investments/formats` and the upload UI, while the shared service handles preview, import, file limits, and deduplication. Adding a provider requires no provider-specific changes to routes, storage, or frontend lists. Add a fictional fixture under `samples/investments/` and tests for detection, values, preview, and repeat imports; never check in personal statements.
+
 ## Monthly Review
 
 Overview now includes a compact review of the latest month with imported data. Choose **Understand what changed** to open the detailed review in Cash Flow, or use **Review month** there to inspect another month.
