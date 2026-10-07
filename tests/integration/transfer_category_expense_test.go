@@ -1,7 +1,9 @@
 package integration_test
 
 import (
-	"strings"
+	"bytes"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -71,7 +73,7 @@ func TestTransferCategoryExcludedFromSpending(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if profile.TotalSpend != 0 || len(profile.MonthlySpendHistory) != 0 {
+	if profile.TotalSpend != 0 || profile.TotalTxCount != 0 || profile.DebitTxCount != 0 || len(profile.MonthlySpendHistory) != 0 {
 		t.Fatalf("transfer in merchant profile: %+v", profile)
 	}
 	rows, count, err := database.ListTransactions(db.TransactionFilter{Limit: 10})
@@ -97,12 +99,7 @@ func TestTransferCategoryExcludedFromSpending(t *testing.T) {
 
 func TestTransferCategoryExcludedAfterResetAndImport(t *testing.T) {
 	database := testDatabase(t)
-	const statement = `Date,Narration,Chq/Ref,Value Dt,Withdrawal,Deposit,Closing Balance
-01/04/2026,NEFT CR-ABC123-EMPLOYER-SALARY,ABC123,01/04/2026,,1000,1000
-02/04/2026,UPI-ALEX-alex@okhdfcbank-HDFC-123456789012-SELF TRANSFER,DEMO123,02/04/2026,500,,500
-03/04/2026,UPI-ALEX-alex@okhdfcbank-HDFC-123456789013-SELF TRANSFER,DEMO124,03/04/2026,,500,1000
-04/04/2026,UPI-SHOP-shop@okhdfcbank-HDFC-123456789014-PAYMENT,123456789014,04/04/2026,100,,900
-`
+	statement := selfTransferStatement(t)
 	for _, reset := range []bool{false, true} {
 		if reset {
 			if err := database.ResetDatabase(); err != nil {
@@ -111,7 +108,7 @@ func TestTransferCategoryExcludedAfterResetAndImport(t *testing.T) {
 		}
 		svc := service.NewTransactionService(database)
 		for attempt := 0; attempt < 2; attempt++ {
-			result, err := svc.ImportStatement("hdfc.csv", strings.NewReader(statement), "", "hdfc_savings_csv_v1", "")
+			result, err := svc.ImportStatement("hdfc.csv", bytes.NewReader(statement), "", "hdfc_savings_csv_v1", "")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -122,6 +119,10 @@ func TestTransferCategoryExcludedAfterResetAndImport(t *testing.T) {
 			if err != nil || overview.TotalExpense != 100 || overview.TotalIncome != 1000 {
 				t.Fatalf("reset=%v attempt=%d: totals %+v error %v", reset, attempt, overview, err)
 			}
+			wrapped, err := database.GetWrappedStory("2026")
+			if err != nil || wrapped.TotalIncome != 1000 || wrapped.TotalExpense != 100 || wrapped.TotalTransactions != 2 || wrapped.UPITxCount != 1 {
+				t.Fatalf("fresh import transfers affected Wrapped: %+v %v", wrapped, err)
+			}
 			flow, err := database.GetCashFlowIntelligence("2026-04")
 			if err != nil || flow.Summary.TotalInflow != 1000 || flow.Summary.TotalOutflow != 100 || flow.Sankey.TotalOutflow != 100 {
 				t.Fatalf("cash flow includes category transfer: %+v %v", flow, err)
@@ -131,10 +132,19 @@ func TestTransferCategoryExcludedAfterResetAndImport(t *testing.T) {
 				t.Fatalf("ledger lost rows: %d %v", count, err)
 			}
 			for _, row := range rows {
-				if row.RawNarration == "UPI-ALEX-alex@okhdfcbank-HDFC-123456789012-SELF TRANSFER" && (row.CategoryID == nil || *row.CategoryID != "cat_transfers" || row.IsTransfer) {
+				if (row.Amount == 500) && (row.CategoryID == nil || *row.CategoryID != "cat_transfers" || row.IsTransfer) {
 					t.Fatalf("test must cover category-only transfer: %+v", row)
 				}
 			}
 		}
 	}
+}
+
+func selfTransferStatement(t *testing.T) []byte {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join("..", "..", "samples", "savings", "HDFC_Self_Transfer_Statement.csv"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return data
 }

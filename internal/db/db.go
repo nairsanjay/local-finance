@@ -1489,7 +1489,7 @@ func (d *DB) GetAnalyticsOverview() (*models.AnalyticsOverview, error) {
 	err := d.conn.QueryRow(`
 		SELECT 
 			SUM(CASE WHEN ` + incomeFilter("") + ` THEN amount ELSE 0 END),
-			SUM(CASE WHEN tx_type = 'DEBIT' AND ` + nonTransferCategoryFilter("") + ` THEN amount ELSE 0 END)
+			SUM(CASE WHEN ` + spendingFilter("") + ` THEN amount ELSE 0 END)
 		FROM transactions
 		WHERE is_transfer = 0 AND is_excluded = 0
 	`).Scan(&totalIncome, &totalExpense)
@@ -1545,7 +1545,7 @@ func (d *DB) GetAnalyticsOverview() (*models.AnalyticsOverview, error) {
 		SELECT 
 			strftime('%Y-%m', tx_date) as month,
 			SUM(CASE WHEN ` + incomeFilter("") + ` THEN amount ELSE 0 END) as income,
-			SUM(CASE WHEN tx_type = 'DEBIT' AND ` + nonTransferCategoryFilter("") + ` THEN amount ELSE 0 END) as expense
+			SUM(CASE WHEN ` + spendingFilter("") + ` THEN amount ELSE 0 END) as expense
 		FROM transactions
 		WHERE is_transfer = 0 AND is_excluded = 0
 		GROUP BY month
@@ -2718,7 +2718,7 @@ func (d *DB) ListMerchants(search, category, sortBy string) (*models.MerchantLis
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
-	where := []string{"t.cleaned_payee != ''", "t.is_transfer = 0", "t.is_excluded = 0"}
+	where := []string{"t.cleaned_payee != ''", financialActivityFilter("t")}
 	args := []interface{}{}
 
 	if search != "" {
@@ -2750,14 +2750,14 @@ func (d *DB) ListMerchants(search, category, sortBy string) (*models.MerchantLis
 			COALESCE(c.name, 'Uncategorized') as category_name,
 			COALESCE(c.color_hex, '#64748B') as category_color,
 			COALESCE(c.icon, '') as category_icon,
-			COALESCE(SUM(CASE WHEN t.tx_type = 'DEBIT' AND ` + nonTransferCategoryFilter("t") + ` THEN t.amount ELSE 0 END), 0) as total_spend,
+			COALESCE(SUM(CASE WHEN ` + spendingFilter("t") + ` THEN t.amount ELSE 0 END), 0) as total_spend,
 			COALESCE(SUM(CASE WHEN ` + incomeFilter("t") + ` THEN t.amount ELSE 0 END), 0) as total_credits,
 			COUNT(t.id) as tx_count,
-			COALESCE(AVG(CASE WHEN t.tx_type = 'DEBIT' AND ` + nonTransferCategoryFilter("t") + ` THEN t.amount ELSE NULL END), 0) as average_order_value,
+			COALESCE(AVG(CASE WHEN ` + spendingFilter("t") + ` THEN t.amount ELSE NULL END), 0) as average_order_value,
 			MIN(t.tx_date) as first_tx_date,
 			MAX(t.tx_date) as last_tx_date,
 			COALESCE(
-				(SELECT a.bank_name FROM transactions st JOIN accounts a ON st.account_id = a.id WHERE st.cleaned_payee = t.cleaned_payee ORDER BY st.tx_date DESC LIMIT 1),
+				(SELECT a.bank_name FROM transactions st JOIN accounts a ON st.account_id = a.id WHERE st.cleaned_payee = t.cleaned_payee AND ` + financialActivityFilter("st") + ` ORDER BY st.tx_date DESC LIMIT 1),
 				''
 			) as primary_source
 		FROM transactions t
@@ -2849,17 +2849,17 @@ func (d *DB) GetMerchantProfile(payeeName string) (*models.MerchantProfile, erro
 			COALESCE(c.name, 'Uncategorized'),
 			COALESCE(c.color_hex, '#64748B'),
 			COALESCE(c.icon, ''),
-			COALESCE(SUM(CASE WHEN t.tx_type = 'DEBIT' AND ` + nonTransferCategoryFilter("t") + ` THEN t.amount ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN ` + spendingFilter("t") + ` THEN t.amount ELSE 0 END), 0),
 			COALESCE(SUM(CASE WHEN ` + incomeFilter("t") + ` THEN t.amount ELSE 0 END), 0),
 			COUNT(t.id),
-			COALESCE(SUM(CASE WHEN t.tx_type = 'DEBIT' THEN 1 ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN ` + spendingFilter("t") + ` THEN 1 ELSE 0 END), 0),
 			COALESCE(SUM(CASE WHEN ` + incomeFilter("t") + ` THEN 1 ELSE 0 END), 0),
-			COALESCE(AVG(CASE WHEN t.tx_type = 'DEBIT' AND ` + nonTransferCategoryFilter("t") + ` THEN t.amount ELSE NULL END), 0),
+			COALESCE(AVG(CASE WHEN ` + spendingFilter("t") + ` THEN t.amount ELSE NULL END), 0),
 			MIN(t.tx_date),
 			MAX(t.tx_date)
 		FROM transactions t
 		LEFT JOIN categories c ON t.category_id = c.id
-		WHERE t.cleaned_payee = ?
+		WHERE t.cleaned_payee = ? AND ` + financialActivityFilter("t") + `
 	`, payeeName).Scan(
 		&catName, &catColor, &catIcon,
 		&totalSpend, &totalCredits,
@@ -2896,7 +2896,7 @@ func (d *DB) GetMerchantProfile(payeeName string) (*models.MerchantProfile, erro
 			COUNT(t.id) as cnt
 		FROM transactions t
 		JOIN accounts a ON t.account_id = a.id
-		WHERE t.cleaned_payee = ? AND t.tx_type = 'DEBIT' AND ` + nonTransferCategoryFilter("t") + `
+		WHERE t.cleaned_payee = ? AND ` + spendingFilter("t") + `
 		GROUP BY acc_name
 		ORDER BY spend DESC
 	`, payeeName)
@@ -2919,7 +2919,7 @@ func (d *DB) GetMerchantProfile(payeeName string) (*models.MerchantProfile, erro
 	// 3. Preferred Payment Mode
 	var prefMode sql.NullString
 	_ = d.conn.QueryRow(`
-		SELECT payment_mode FROM transactions WHERE cleaned_payee = ? GROUP BY payment_mode ORDER BY COUNT(*) DESC LIMIT 1
+		SELECT payment_mode FROM transactions WHERE cleaned_payee = ? AND ` + financialActivityFilter("") + ` GROUP BY payment_mode ORDER BY COUNT(*) DESC LIMIT 1
 	`, payeeName).Scan(&prefMode)
 	if prefMode.Valid {
 		p.PreferredPaymentMode = prefMode.String
@@ -2932,7 +2932,7 @@ func (d *DB) GetMerchantProfile(payeeName string) (*models.MerchantProfile, erro
 			COALESCE(SUM(amount), 0),
 			COUNT(id)
 		FROM transactions
-		WHERE cleaned_payee = ? AND tx_type = 'DEBIT' AND ` + nonTransferCategoryFilter("") + `
+		WHERE cleaned_payee = ? AND ` + spendingFilter("") + `
 		GROUP BY m
 		ORDER BY m ASC
 	`, payeeName)
@@ -2954,7 +2954,7 @@ func (d *DB) GetMerchantProfile(payeeName string) (*models.MerchantProfile, erro
 			t.tx_type, t.amount, t.is_transfer, t.is_excluded, t.created_at
 		FROM transactions t
 		JOIN accounts a ON t.account_id = a.id
-		WHERE t.cleaned_payee = ?
+		WHERE t.cleaned_payee = ? AND ` + financialActivityFilter("t") + `
 		ORDER BY t.tx_date DESC
 		LIMIT 50
 	`, payeeName)
@@ -3755,9 +3755,9 @@ func (d *DB) GetWrappedStory(year string) (*models.WrappedStory, error) {
 		SELECT 
 			COALESCE(SUM(CASE WHEN ` + incomeFilter("") + ` THEN amount ELSE 0 END), 0) as income,
 			COALESCE(SUM(CASE WHEN ` + spendingFilter("") + ` THEN amount ELSE 0 END), 0) as expense,
-			COUNT(CASE WHEN is_transfer = 0 AND is_excluded = 0 THEN id ELSE NULL END) as total_txs,
-			COUNT(CASE WHEN payment_mode = 'UPI' AND is_transfer = 0 AND is_excluded = 0 THEN id ELSE NULL END) as upi_txs,
-			COUNT(CASE WHEN payment_mode IN ('CARD_POS', 'CARD_ONLINE') AND is_transfer = 0 AND is_excluded = 0 THEN id ELSE NULL END) as card_txs,
+			COUNT(CASE WHEN ` + financialActivityFilter("") + ` THEN id ELSE NULL END) as total_txs,
+			COUNT(CASE WHEN payment_mode = 'UPI' AND ` + financialActivityFilter("") + ` THEN id ELSE NULL END) as upi_txs,
+			COUNT(CASE WHEN payment_mode IN ('CARD_POS', 'CARD_ONLINE') AND ` + financialActivityFilter("") + ` THEN id ELSE NULL END) as card_txs,
 			COALESCE(SUM(CASE WHEN payment_mode = 'UPI' AND ` + spendingFilter("") + ` THEN amount ELSE 0 END), 0) as upi_spend,
 			COALESCE(SUM(CASE WHEN payment_mode IN ('CARD_POS', 'CARD_ONLINE') AND ` + spendingFilter("") + ` THEN amount ELSE 0 END), 0) as card_spend,
 			COALESCE(SUM(cashback_amount), 0) as cashback,

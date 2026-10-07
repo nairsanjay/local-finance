@@ -85,3 +85,50 @@ func TestTransfersAreNeitherIncomeNorExpense(t *testing.T) {
 		})
 	}
 }
+
+func TestMerchantAndWrappedActivityExcludesTransfers(t *testing.T) {
+	for _, flag := range []bool{false, true} {
+		t.Run(map[bool]string{false: "category only", true: "transfer flag"}[flag], func(t *testing.T) {
+			database := testDatabase(t)
+			account, err := database.GetOrCreateAccount("Test Bank", models.AccountTypeSavings, "", "XX1001", "", "", "", "", "", "", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			transferCategory := models.CategoryTransfersID
+			if flag {
+				transferCategory = "cat_others"
+			}
+			for _, tx := range []*models.Transaction{
+				{TxHash: "purchase", TxType: models.TxTypeDebit, Amount: 100, PaymentMode: models.PaymentModeUPI},
+				{TxHash: "refund", TxType: models.TxTypeCredit, Amount: 20, PaymentMode: models.PaymentModeCardOnline},
+				{TxHash: "transfer-debit", TxType: models.TxTypeDebit, Amount: 1000, CategoryID: &transferCategory, IsTransfer: flag, PaymentMode: models.PaymentModeUPI},
+				{TxHash: "transfer-credit", TxType: models.TxTypeCredit, Amount: 1000, CategoryID: &transferCategory, IsTransfer: flag, PaymentMode: models.PaymentModeCardOnline},
+				{TxHash: "excluded", TxType: models.TxTypeDebit, Amount: 200, IsExcluded: true, PaymentMode: models.PaymentModeUPI},
+			} {
+				tx.AccountID, tx.TxDate, tx.CleanedPayee = account.ID, "2026-04-01", "Shop"
+				if _, err := database.UpsertTransaction(tx); err != nil {
+					t.Fatal(err)
+				}
+			}
+			merchants, err := database.ListMerchants("", "", "total_spend")
+			if err != nil || merchants.TotalMerchants != 1 || merchants.Merchants[0].TxCount != 2 || merchants.Merchants[0].TotalSpend != 100 || merchants.Merchants[0].TotalCredits != 20 {
+				t.Fatalf("transfers affected merchant list: %+v %v", merchants, err)
+			}
+			profile, err := database.GetMerchantProfile("Shop")
+			if err != nil || profile.TotalTxCount != 2 || profile.DebitTxCount != 1 || profile.CreditTxCount != 1 || profile.NetSpend != 80 || profile.AverageOrderValue != 100 {
+				t.Fatalf("transfers affected merchant profile: %+v %v", profile, err)
+			}
+			if len(profile.MonthlySpendHistory) != 1 || profile.MonthlySpendHistory[0].TxCount != 1 || len(profile.PaymentSources) != 1 || profile.PaymentSources[0].TxCount != 1 || len(profile.RecentTransactions) != 2 {
+				t.Fatalf("transfers affected merchant breakdown: %+v", profile)
+			}
+			wrapped, err := database.GetWrappedStory("2026")
+			if err != nil || wrapped.TotalTransactions != 2 || wrapped.UPITxCount != 1 || wrapped.CardTxCount != 1 || wrapped.TotalIncome != 20 || wrapped.TotalExpense != 100 {
+				t.Fatalf("transfers affected Wrapped counts: %+v %v", wrapped, err)
+			}
+			_, count, err := database.ListTransactions(db.TransactionFilter{Limit: 10})
+			if err != nil || count != 5 {
+				t.Fatalf("ledger lost rows: %d %v", count, err)
+			}
+		})
+	}
+}
