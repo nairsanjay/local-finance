@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/csv"
-	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -12,21 +11,11 @@ import (
 )
 
 func main() {
-	selfTransfersOnly := flag.Bool("self-transfers-only", false, "Generate only the synthetic self-transfer CSV fixture")
-	flag.Parse()
-
 	savingsDir := filepath.Join("samples", "savings")
 	ccDir := filepath.Join("samples", "credit_cards")
 
 	_ = os.MkdirAll(savingsDir, 0755)
 	_ = os.MkdirAll(ccDir, 0755)
-
-	if err := generateHDFCSelfTransferCSV(filepath.Join(savingsDir, "HDFC_Self_Transfer_Statement.csv")); err != nil {
-		log.Fatal(err)
-	}
-	if *selfTransfersOnly {
-		return
-	}
 
 	log.Println("🚀 Generating masked sample statements...")
 
