@@ -18,12 +18,12 @@ func TestINDmoneyPreviewValuationMigration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Simulate a version-14 preview with entirely fictional holdings.
+	// Simulate a version-16 preview with entirely fictional holdings.
 	legacy := `{"id":"preview-demo","parser_id":"indmoney_us_holdings_xls_v1","provider":"INDmoney","account_ref":"DEMO-US-01","as_of":"2026-04-01","currency":"USD","filename":"fictional.xls","imported_at":"2026-04-02T00:00:00Z","invested_value":20,"current_value":null,"unrealized_return":null,"return_percent":null,"holdings":[{"symbol":"DEMO-A","quantity":2,"average_price":10,"closing_price":null,"invested_value":20,"current_value":null,"unrealized_return":null,"return_percent":null,"fields":{"Total Value ($)":"20"}}],"sheets":[],"warnings":[]}`
 	if _, err := conn.Exec(`INSERT INTO investment_snapshots VALUES('preview-demo','INDmoney','DEMO-US-01','2026-04-01','demo-hash','2026-04-02T00:00:00Z',?)`, legacy); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := conn.Exec(`DELETE FROM goose_db_version WHERE version_id=15`); err != nil {
+	if _, err := conn.Exec(`DELETE FROM goose_db_version WHERE version_id=17`); err != nil {
 		t.Fatal(err)
 	}
 	conn.Close()
