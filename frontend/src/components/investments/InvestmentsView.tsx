@@ -75,6 +75,12 @@ export function InvestmentsView() {
         </TableBody></Table></CardContent></Card>
       <Card><CardHeader className="flex flex-row items-center justify-between"><CardTitle>Statement details</CardTitle><Button variant="outline" onClick={() => setShowSource(!showSource)}>{showSource ? 'Hide details' : 'Show all fields'}</Button></CardHeader>
         {showSource && <CardContent className="space-y-3"><p className="text-xs text-muted-foreground">Original statement fields are preserved here. Repeated worksheets are shown without adding them to portfolio totals.</p>
+          <h3 className="text-sm font-semibold">Provider fields by holding</h3>
+          {holdings.map(holding => <section key={holding.isin || holding.symbol} aria-label={`Provider fields for ${holding.symbol}`} className="space-y-2">
+            <h4 className="text-sm font-medium">{holding.symbol}</h4>
+            {Object.keys(holding.fields ?? {}).length ? <Table><TableHeader><TableRow><TableHead>Field</TableHead><TableHead>Value</TableHead></TableRow></TableHeader><TableBody>{Object.entries(holding.fields).map(([field, value]) => <TableRow key={field}><TableCell>{field}</TableCell><TableCell>{maskValue(value)}</TableCell></TableRow>)}</TableBody></Table> : <p className="text-xs text-muted-foreground">No additional provider fields.</p>}
+          </section>)}
+          <h3 className="text-sm font-semibold">Original worksheets</h3>
           <Select value={sheet?.name ?? ''} onValueChange={value => setSourceSheet(value ?? '')}><SelectTrigger className="w-[200px]" aria-label="Statement worksheet"><SelectValue>{sheet?.name}</SelectValue></SelectTrigger><SelectContent>{snapshot.sheets.map(s => <SelectItem key={s.name} value={s.name}>{s.name}</SelectItem>)}</SelectContent></Select>
           <Table><TableBody>{sourceRows.map((row, i) => <TableRow key={i}>{row.map((value, j) => <TableCell key={j} className="whitespace-nowrap">{maskValue(value)}</TableCell>)}</TableRow>)}</TableBody></Table>
         </CardContent>}

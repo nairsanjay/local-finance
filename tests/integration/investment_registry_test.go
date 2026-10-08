@@ -85,6 +85,9 @@ func TestInvestmentAPIUsesRegisteredProvider(t *testing.T) {
 	if preview.Provider != "Example Broker" || preview.ParserID != "example_holdings_xlsx_v1" {
 		t.Fatalf("generic preview did not use registered adapter: %+v", preview)
 	}
+	if preview.Sheets == nil || preview.Warnings == nil {
+		t.Fatal("optional adapter collections must be arrays for the shared UI")
+	}
 	before, err := database.ListInvestmentSnapshots()
 	if err != nil || len(before) != 0 {
 		t.Fatalf("preview persisted a snapshot: %+v, %v", before, err)

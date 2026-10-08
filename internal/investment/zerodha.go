@@ -142,7 +142,12 @@ func (ZerodhaHoldingsParser) Parse(data []byte) (*models.InvestmentSnapshot, err
 			continue
 		}
 		if header < 0 {
-			return nil, fmt.Errorf("sheet %s has no holdings table", name)
+			if combined || strings.EqualFold(name, "Equity") || strings.EqualFold(name, "Mutual Funds") {
+				return nil, fmt.Errorf("sheet %s has no holdings table", name)
+			}
+			// Summary and disclaimer worksheets are retained for inspection.
+			// A detected holdings table must still have all required columns.
+			continue
 		}
 		for _, required := range []string{"Quantity Available", "Average Price", "Previous Closing Price", "Unrealized P&L"} {
 			if _, ok := cols[required]; !ok {

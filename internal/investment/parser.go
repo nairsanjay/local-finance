@@ -38,14 +38,6 @@ func (r *Registry) Register(p Parser) {
 	r.parsers = append(r.parsers, p)
 }
 
-func (r *Registry) Get(id string) (Parser, bool) {
-	for _, p := range r.parsers {
-		if p.ID() == id {
-			return p, true
-		}
-	}
-	return nil, false
-}
 func (r *Registry) List() []ParserInfo {
 	result := make([]ParserInfo, 0, len(r.parsers))
 	for _, p := range r.parsers {
@@ -75,6 +67,17 @@ func (r *Registry) Parse(filename string, data []byte) (*models.InvestmentSnapsh
 	}
 	if result == nil || result.Provider == "" || result.AccountRef == "" || result.AsOf == "" || result.Currency == "" {
 		return nil, fmt.Errorf("investment parser returned an incomplete portfolio")
+	}
+	// Optional collections must stay arrays in the shared API, including for
+	// providers that have no original worksheets or parser warnings.
+	if result.Holdings == nil {
+		result.Holdings = []models.InvestmentHolding{}
+	}
+	if result.Sheets == nil {
+		result.Sheets = []models.InvestmentSheet{}
+	}
+	if result.Warnings == nil {
+		result.Warnings = []string{}
 	}
 	result.ParserID = selected.ID()
 	return result, nil
