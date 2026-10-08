@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"embed"
 	"encoding/csv"
-	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -125,17 +124,6 @@ func (d *DB) migrate() error {
 		return fmt.Errorf("failed to create migration provider: %w", err)
 	}
 	ctx := context.Background()
-	version, err := provider.GetDBVersion(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to read migration version: %w", err)
-	}
-	// Preview builds applied 16/17 while 15 was reserved. Backfill only the
-	// explicit no-op reservation; keep strict checks for every other gap.
-	if version >= 16 {
-		if _, err := provider.ApplyVersion(ctx, 15, true); err != nil && !errors.Is(err, goose.ErrAlreadyApplied) {
-			return fmt.Errorf("failed to apply investment preview reservation: %w", err)
-		}
-	}
 	if _, err := provider.Up(ctx); err != nil {
 		return fmt.Errorf("failed to apply migrations: %w", err)
 	}
