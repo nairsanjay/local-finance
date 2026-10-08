@@ -8,7 +8,7 @@ import (
 )
 
 // Shared workbook helpers keep adapters independent of other providers.
-func columns(row []string) map[string]int {
+func headerIndexMap(row []string) map[string]int {
 	result := map[string]int{}
 	for i, v := range row {
 		if v = strings.TrimSpace(v); v != "" {

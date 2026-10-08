@@ -54,7 +54,7 @@ func (ZerodhaHoldingsParser) CanParse(filename string, data []byte) bool {
 					title = true
 				}
 			}
-			cols := columns(row)
+			cols := headerIndexMap(row)
 			_, symbol := cols["Symbol"]
 			_, isin := cols["ISIN"]
 			_, price := cols["Previous Closing Price"]
@@ -129,7 +129,7 @@ func (ZerodhaHoldingsParser) Parse(data []byte) (*models.InvestmentSnapshot, err
 					}
 				}
 			}
-			candidate := columns(row)
+			candidate := headerIndexMap(row)
 			if _, ok := candidate["ISIN"]; ok {
 				if _, ok := candidate["Symbol"]; ok {
 					header = i
@@ -188,7 +188,8 @@ func (ZerodhaHoldingsParser) Parse(data []byte) (*models.InvestmentSnapshot, err
 			if h.Quantity < 0 || *h.AveragePrice < 0 || *h.ClosingPrice < 0 {
 				return nil, fmt.Errorf("negative holding quantity or price")
 			}
-			if strings.EqualFold(name, "Mutual Funds") || h.Fields["Instrument Type"] != "" && h.Fields["Instrument Type"] != "-" {
+			instrumentType := h.Fields["Instrument Type"]
+			if strings.EqualFold(name, "Mutual Funds") || strings.EqualFold(instrumentType, "MF") || strings.EqualFold(instrumentType, "Mutual Fund") {
 				h.AssetClass = "Mutual Fund"
 			}
 			*h.CurrentValue = h.Quantity * *h.ClosingPrice

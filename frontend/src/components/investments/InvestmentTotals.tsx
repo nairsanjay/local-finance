@@ -1,13 +1,14 @@
 import { useMemo } from 'react'
 import type { InvestmentSnapshot } from '@/types/investments'
 import { investmentTotals } from '@/lib/investment-summary'
+import { formatMoney } from '@/lib/formatters'
 import { usePrivacy } from '@/components/privacy-provider'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 export function InvestmentTotals({ snapshots }: { snapshots: InvestmentSnapshot[] }) {
   const totals = useMemo(() => investmentTotals(snapshots), [snapshots])
   const { isPrivacyMode } = usePrivacy()
-  const money = (value: number, currency: string) => isPrivacyMode ? '••••••' : new Intl.NumberFormat('en-IN', { style: 'currency', currency, maximumFractionDigits: 2 }).format(value)
+  const money = (value: number, currency: string) => formatMoney(value, currency, isPrivacyMode)
   if (!totals.length) return null
   return <section aria-label="Investment totals by currency" className="space-y-3">
     <h2 className="text-lg font-semibold">Total investment holdings</h2>

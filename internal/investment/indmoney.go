@@ -25,7 +25,7 @@ func (INDmoneyHoldingsParser) Info() ParserInfo {
 var indmoneyHeaders = []string{"Stock Symbol", "Holding Since", "Quantity", "Avg. Price ($)", "Total Value ($)"}
 
 func indmoneyHeader(row []string) bool {
-	cols := columns(row)
+	cols := headerIndexMap(row)
 	for _, name := range indmoneyHeaders {
 		if _, ok := cols[name]; !ok {
 			return false
@@ -107,7 +107,7 @@ func parseINDmoneyHoldings(sheets []models.InvestmentSheet) (*models.InvestmentS
 				if header >= 0 {
 					return nil, fmt.Errorf("multiple holdings tables in one worksheet")
 				}
-				header, cols = i, columns(row)
+				header, cols = i, headerIndexMap(row)
 			}
 		}
 		if header < 0 {
@@ -117,7 +117,7 @@ func parseINDmoneyHoldings(sheets []models.InvestmentSheet) (*models.InvestmentS
 			if strings.HasPrefix(strings.ToLower(cell(row, 0)), "disclaimer") {
 				break
 			}
-			if len(columns(row)) == 0 {
+			if len(headerIndexMap(row)) == 0 {
 				continue
 			}
 			h := models.InvestmentHolding{Symbol: cell(row, cols["Stock Symbol"]), AssetClass: "US Stock", Fields: map[string]string{}}

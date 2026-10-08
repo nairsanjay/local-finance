@@ -31,7 +31,7 @@ func investmentWorkbook(t *testing.T, modify func(*excelize.File)) []byte {
 		{"Invested Value", 800}, {"Present Value", 900},
 		{"Symbol", "ISIN", "Sector", "Instrument Type", "Quantity Available", "Quantity Pledged (Margin)", "Quantity Pledged (Loan)", "Average Price", "Previous Closing Price", "Unrealized P&L", "Quantity Discrepant", "Quantity Long Term"},
 		{"DEMO EQUITY", "INE000DEMO01", "Example sector", "-", 2, 1, 0, 100, 90, -30, 0, 1},
-		{"DEMO FUND", "INF000DEMO01", "-", "Equity - Example", 5, 0, 0, 100, 126, 130, 0, "-"},
+		{"DEMO FUND", "INF000DEMO01", "-", "MF", 5, 0, 0, 100, 126, 130, 0, "-"},
 	}
 	for i, row := range rows {
 		axis, _ := excelize.CoordinatesToCellName(1, i+1)

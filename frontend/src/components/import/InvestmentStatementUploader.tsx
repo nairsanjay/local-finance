@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { UploadCloud, Eye, X } from 'lucide-react'
 import { fetchInvestmentFormats, importInvestment, previewInvestment } from '@/lib/api'
+import { formatMoney } from '@/lib/formatters'
 import type { InvestmentSnapshot } from '@/types/investments'
 import { usePrivacy } from '@/components/privacy-provider'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
@@ -52,7 +53,7 @@ export function InvestmentStatementUploader() {
     try { for (const item of queue.filter(item => item.status === 'ready')) await save(item) } finally { setBusy(false) }
   }
   const ready = queue.filter(item => item.status === 'ready').length
-  const money = (value: number | null, currency: string) => value === null ? 'Not provided' : isPrivacyMode ? '••••••' : new Intl.NumberFormat('en-IN', { style: 'currency', currency, maximumFractionDigits: 2 }).format(value)
+  const money = (value: number | null, currency: string) => formatMoney(value, currency, isPrivacyMode)
 
   return <div className="space-y-6">
     <Card><CardHeader><CardTitle className="flex items-center gap-2"><UploadCloud className="h-4 w-4" />Import investment statements</CardTitle></CardHeader><CardContent className="space-y-4">

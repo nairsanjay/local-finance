@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { TrendingUp } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { fetchInvestments, deleteInvestment } from '@/lib/api'
+import { formatMoney } from '@/lib/formatters'
 import { usePrivacy } from '@/components/privacy-provider'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -31,8 +32,8 @@ export function InvestmentsView() {
   const holdings = useMemo(() => snapshot?.holdings.filter(h =>
     (asset === 'ALL' || h.asset_class === asset) && `${h.symbol} ${h.isin}`.toLowerCase().includes(search.toLowerCase())
   ) ?? [], [snapshot, asset, search])
-  const money = (value: number | null) => value === null ? 'Not provided' : isPrivacyMode ? '••••••' : new Intl.NumberFormat('en-IN', { style: 'currency', currency: snapshot?.currency ?? 'INR', maximumFractionDigits: 2 }).format(value)
-  const price = (value: number | null) => value === null ? 'Not provided' : isPrivacyMode ? '••••••' : new Intl.NumberFormat('en-IN', { style: 'currency', currency: snapshot?.currency ?? 'INR', maximumFractionDigits: 6 }).format(value)
+  const money = (value: number | null) => formatMoney(value, snapshot?.currency ?? 'INR', isPrivacyMode)
+  const price = (value: number | null) => formatMoney(value, snapshot?.currency ?? 'INR', isPrivacyMode, 6)
   const percent = (value: number | null) => value === null ? 'Not available' : maskValue(`${value.toFixed(2)}%`)
   const sheet = snapshot?.sheets.find(s => s.name === sourceSheet) ?? snapshot?.sheets[0]
   const sourceRows = sheet?.rows.filter(row => row?.some(cell => cell.trim() !== '')) ?? []

@@ -35,6 +35,14 @@ func (d *DB) SaveInvestmentSnapshot(snapshot *models.InvestmentSnapshot, hash st
 }
 
 func (d *DB) ListInvestmentSnapshots() ([]models.InvestmentSnapshot, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	return d.listInvestmentSnapshots()
+}
+
+// listInvestmentSnapshots requires the caller to hold d.mu. Export already
+// holds a read lock, so it must not recursively acquire it with a writer waiting.
+func (d *DB) listInvestmentSnapshots() ([]models.InvestmentSnapshot, error) {
 	rows, err := d.conn.Query(`SELECT data_json FROM investment_snapshots ORDER BY as_of DESC, imported_at DESC, id DESC`)
 	if err != nil {
 		return nil, err

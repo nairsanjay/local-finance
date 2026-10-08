@@ -1802,7 +1802,7 @@ func (d *DB) RestoreFrom(r io.Reader) error {
 func (d *DB) ExportAllDataJSON() (*models.FullExportData, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
-	investments, err := d.ListInvestmentSnapshots()
+	investments, err := d.listInvestmentSnapshots()
 	if err != nil {
 		return nil, err
 	}
