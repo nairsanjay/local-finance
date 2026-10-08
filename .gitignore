@@ -188,3 +188,8 @@ local_finance.db.bak
 *.db-*
 
 !frontend/dist/.gitkeep
+
+# Personal investment exports; only fictional samples belong in Git.
+*.xlsx
+*.xls
+!samples/investments/*

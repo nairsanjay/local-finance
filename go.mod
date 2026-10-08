@@ -3,6 +3,7 @@ module local-finance
 go 1.26.6
 
 require (
+	github.com/extrame/ole2 v0.0.0-20160812065207-d69429661ad7
 	github.com/dslipak/pdf v0.0.2
 	github.com/extrame/xls v0.0.1
 	github.com/gin-contrib/cors v1.7.7
@@ -30,7 +31,6 @@ require (
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
-	github.com/extrame/ole2 v0.0.0-20160812065207-d69429661ad7 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.12 // indirect
 	github.com/gin-contrib/sse v1.1.0 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect

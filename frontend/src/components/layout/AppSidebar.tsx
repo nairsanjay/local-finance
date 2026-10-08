@@ -64,6 +64,7 @@ const mainNavItems: NavItem[] = [
 ]
 
 const intelligenceNavItems: NavItem[] = [
+  { title: 'Investments', url: '/investments', icon: Briefcase },
   {
     title: 'Cash Flow & Sankey',
     url: '/cashflow',

@@ -74,7 +74,7 @@ pnpm run build
 
 ## 🛡️ Privacy & Sensitive Data Guidelines
 
-* **Never commit real bank statements or credentials**: LocalFinance is a privacy-first tool. All tests must run against synthetic statements (located in `samples/`) generated using `cmd/generate_samples`.
+* **Never commit real statements or credentials**: LocalFinance is a privacy-first tool. Tests must use entirely fictional data. Ready-to-import fixtures belong in `samples/`; existing bank samples can be regenerated using `cmd/generate_samples`. Investment samples are checked-in fictional workbooks and do not require generator tooling. Tests may adapt fictional fixtures in memory to cover layout variations. Never derive fixtures from a user's personal statement.
 * **No Telemetry / No Cloud APIs**: Do not add third-party tracking, analytics, or external cloud sync APIs without explicit discussion and architecture approval.
 * **Keep Dependencies Minimal**: The Go backend utilizes pure-Go SQLite (`modernc.org/sqlite`) for zero-CGO cross-compilation. Avoid dependencies that require CGO.
 

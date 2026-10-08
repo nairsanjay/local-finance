@@ -9,7 +9,7 @@ Read the repository's `AGENTS.md`, `internal/parser/parser.go`, the closest exis
 
 ## Fit the existing plugin
 
-Implement `StatementParser` in a format-specific file under `internal/parser/`, register through `DefaultRegistry`, and return the existing `StatementMeta` and `ParsedTransaction` types. Keep institution-specific headings, detection signals and metadata inside its adapter. Put genuinely shared mechanics in the parser package's utilities or existing extractor package. Do not add a second registry, parallel transaction model, inheritance framework, or service-level bank switch.
+For bank and credit-card transactions, implement `StatementParser` in a format-specific file under `internal/parser/`, register through `DefaultRegistry`, and return the existing `StatementMeta` and `ParsedTransaction` types. Keep institution-specific headings, detection signals and metadata inside its adapter. Put genuinely shared mechanics in the parser package's utilities or existing extractor package. Do not add a second bank-transaction registry, parallel transaction model, inheritance framework, or service-level bank switch.
 
 Detection uses confidence scores. The registry extracts compressed PDF text once before asking adapters to identify it. Test a generic filename as well as the bank's customary filename; raw PDF bytes often hide text in compressed streams. Encrypted PDFs are unlocked by the existing service/extractor path with a user-supplied password.
 
@@ -28,6 +28,8 @@ Bank debits/credits and credit-card purchases/payments have different meanings. 
 ## Investment formats
 
 First inspect the current account types, transaction fields, and service support. Do not force holdings snapshots, units, security identifiers, valuations, or corporate actions into bank debit/credit transactions. If the existing model cannot represent the requested investment data faithfully, identify the required model/service extension before implementing the adapter. Password rules belong to the unlock path; retain no credentials or identifying examples in source or fixtures.
+
+Holdings snapshots use `investment.Parser` in `internal/investment/`, returning `models.InvestmentSnapshot` instead of bank transactions. Register adapters in their own `init()` through `investment.DefaultRegistry`. Extend this existing investment contract for new providers; do not create additional provider registries or switches in services or UI. Provider capabilities drive format discovery, and preview, import, storage, and deduplication remain shared. Use checked-in fictional workbooks in `samples/investments/` and preserve provider fields and original worksheets.
 
 ## Verification
 

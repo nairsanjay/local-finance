@@ -23,7 +23,7 @@ import { TopPayeesList } from '@/components/dashboard/TopPayeesList'
 import { AccountCard } from '@/components/dashboard/AccountCard'
 import { CreditCardBillsCard } from '@/components/dashboard/CreditCardBillsCard'
 import { TransactionTable } from '@/components/transactions/TransactionTable'
-import { StatementUploader } from '@/components/import/StatementUploader'
+import { StatementImportView } from '@/components/import/StatementImportView'
 import { CalendarView } from '@/components/calendar/CalendarView'
 import { SettingsView } from '@/components/settings/SettingsView'
 import { SubscriptionsView } from '@/components/subscriptions/SubscriptionsView'
@@ -36,6 +36,8 @@ import { GuideView } from '@/components/guide/GuideView'
 import { WhatsNewView } from '@/components/whatsnew/WhatsNewView'
 import { WrappedView } from '@/components/wrapped/WrappedView'
 import { SalaryView } from '@/components/salary/SalaryView'
+import { InvestmentsView } from '@/components/investments/InvestmentsView'
+import { InvestmentTotals } from '@/components/investments/InvestmentTotals'
 import { PrivacyProvider } from '@/components/privacy-provider'
 import { PrivacyToggle } from '@/components/layout/PrivacyToggle'
 import { UpdateIndicator } from '@/components/updates/UpdateIndicator'
@@ -50,7 +52,7 @@ import type {
   SettingsSearchParams,
   SalarySearchParams,
 } from '@/types'
-import { fetchAccounts, fetchAnalytics, fetchCreditCardBills } from '@/lib/api'
+import { fetchAccounts, fetchAnalytics, fetchCreditCardBills, fetchInvestments } from '@/lib/api'
 import { formatINR } from '@/lib/utils'
 import {
   Wallet,
@@ -80,6 +82,7 @@ const RootLayoutContent: React.FC = () => {
       case '/transactions': return 'Transactions Ledger'
       case '/cashflow': return 'Cash Flow & Sankey'
       case '/salary': return 'Salary & Income Insights'
+      case '/investments': return 'Investments'
       case '/calendar': return 'Spending Calendar'
       case '/budget': return 'Category Budgets'
       case '/cards': return 'Credit Cards & Rewards'
@@ -173,6 +176,7 @@ const rootRoute = createRootRoute({
 
 // Overview Dashboard Page
 const DashboardPage: React.FC = () => {
+  const investments = useQuery({ queryKey: ['investments'], queryFn: fetchInvestments })
   const { data: analytics, isLoading } = useQuery({
     queryKey: ['analytics'],
     queryFn: fetchAnalytics,
@@ -252,6 +256,8 @@ const DashboardPage: React.FC = () => {
         </Card>
       )}
 
+      {investments.error && <p role="alert" className="text-sm text-destructive">Investment totals could not be loaded: {investments.error.message}</p>}
+      <InvestmentTotals snapshots={investments.data ?? []} />
       <MonthlyReview compact />
 
       {/* KPI Overview Cards */}
@@ -401,17 +407,8 @@ const calendarRoute = createRoute({
 const importRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/import',
-  component: () => (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">Statement Import</h1>
-        <p className="text-xs text-muted-foreground mt-1">
-          Upload bank and credit card files with auto-detection and smart duplicate fingerprinting
-        </p>
-      </div>
-      <StatementUploader />
-    </div>
-  ),
+  validateSearch: (search: Record<string, unknown>): { tab?: 'investments' } => ({ tab: search.tab === 'investments' ? 'investments' : undefined }),
+  component: () => <StatementImportView initialTab={importRoute.useSearch().tab ?? 'bank'} />,
 })
 
 const subscriptionsRoute = createRoute({
@@ -562,6 +559,7 @@ const salaryRoute = createRoute({
 })
 
 const routeTree = rootRoute.addChildren([
+  createRoute({ getParentRoute: () => rootRoute, path: '/investments', component: InvestmentsView }),
   indexRoute,
   transactionsRoute,
   cashflowRoute,
