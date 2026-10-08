@@ -42,6 +42,8 @@ func (p *ICICISavingsPDFParser) CanParse(filename string, sample []byte) (float6
 	return confidence, "ICICI Bank", models.AccountTypeSavings
 }
 
+const iciciStatementDatePattern = `\d{2}[./-]\d{2}[./-]\d{2,4}|[A-Za-z]+\s+\d{1,2},\s*\d{4}`
+
 var iciciSavingsProfile = bankHistoryProfile{
 	bankName:       "ICICI Bank",
 	accountType:    models.AccountTypeSavings,
@@ -58,7 +60,7 @@ var iciciSavingsProfile = bankHistoryProfile{
 	balanceHeaders: []string{"BALANCE"},
 	reference:      []string{"CHEQUE NUMBER", "CHEQUE NO", "CHQ NO", "REFERENCE"},
 	accountPattern: regexp.MustCompile(`(?i)(?:account\s*(?:number|no\.?)|a/c\s*(?:number|no\.?))\s*:?\s*([0-9X*]{8,20})\b`),
-	periodPattern:  regexp.MustCompile(`(?i)(?:statement\s+period|period\s+from|statement\s+from|for\s+the\s+period)\s*:?\s*(\d{2}[./-]\d{2}[./-]\d{2,4}|[A-Za-z]+\s+\d{1,2},\s*\d{4})\s*(?:to|-)\s*(\d{2}[./-]\d{2}[./-]\d{2,4}|[A-Za-z]+\s+\d{1,2},\s*\d{4})`),
+	periodPattern:  regexp.MustCompile(`(?i)(?:statement\s+period|period\s+from|statement\s+from|for\s+the\s+period)\s*:?\s*(` + iciciStatementDatePattern + `)\s*(?:to|-)\s*(` + iciciStatementDatePattern + `)`),
 	openingPattern: regexp.MustCompile(`(?i)opening\s+balance\s*:?\s*([0-9][0-9,]*(?:\.\d{2})?)\s*(CR|DR)?`),
 	closingPattern: regexp.MustCompile(`(?i)closing\s+balance\s*:?\s*([0-9][0-9,]*(?:\.\d{2})?)\s*(CR|DR)?`),
 	debitTotal:     regexp.MustCompile(`(?i)total\s+(?:debits|withdrawals)\s*:?\s*([0-9][0-9,]*(?:\.\d{2})?)`),
@@ -87,6 +89,8 @@ func (p *ICICISavingsPDFParser) Parse(r io.Reader, opts ParseOptions) ([]ParsedT
 
 // ICICI history exports center headings but right-align numeric cells. Use
 // their printed header rectangles so small withdrawals stay in their column.
+// The shared extractor supplies text rows but not rectangles; this additional
+// ICICI-only pass avoids changing extraction behavior for other bank parsers.
 func alignICICIHistoryFinancialHeaders(rows []extractor.PositionalRow, data []byte) error {
 	document, err := pdf.NewReader(bytes.NewReader(data), int64(len(data)))
 	if err != nil {

@@ -187,7 +187,7 @@ func syntheticBaselinePDF(t *testing.T, rows []extractor.PositionalRow) []byte {
 	return syntheticBaselinePDFWithFontSize(t, rows, 8)
 }
 
-func syntheticBaselinePDFWithFontSize(t *testing.T, rows []extractor.PositionalRow, fontSize float64) []byte {
+func syntheticBaselinePDFWithFontSize(t *testing.T, rows []extractor.PositionalRow, fontSize float64, pageSetup ...func(*gofpdf.Fpdf)) []byte {
 	t.Helper()
 	pdf := gofpdf.NewCustom(&gofpdf.InitType{UnitStr: "pt", Size: gofpdf.SizeType{Wd: 800, Ht: 650}})
 	// Explicit widths exercise measured text extents. The PDF reader does not
@@ -209,6 +209,9 @@ func syntheticBaselinePDFWithFontSize(t *testing.T, rows []extractor.PositionalR
 		if row.Page != page {
 			pdf.AddPage()
 			pdf.SetFont("fixture", "", fontSize)
+			for _, setup := range pageSetup {
+				setup(pdf)
+			}
 			page = row.Page
 		}
 		for _, element := range row.Elements {

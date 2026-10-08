@@ -2,7 +2,6 @@ package parser
 
 import (
 	"bytes"
-	"encoding/json"
 	"slices"
 	"testing"
 
@@ -114,32 +113,9 @@ func TestICICIHistoryRightAlignedSmallAmounts(t *testing.T) {
 
 func syntheticICICIHistoryCellPDF(t *testing.T, rows []extractor.PositionalRow) []byte {
 	t.Helper()
-	document := gofpdf.NewCustom(&gofpdf.InitType{UnitStr: "pt", Size: gofpdf.SizeType{Wd: 800, Ht: 650}})
-	widths := make([]int, 256)
-	for index := range widths {
-		widths[index] = 600
-	}
-	font, err := json.Marshal(map[string]any{
-		"Tp": "Type1", "Name": "Courier", "Cw": widths, "Enc": "cp1252", "Up": -100, "Ut": 50,
-		"Desc": map[string]any{"Ascent": 629, "Descent": -157, "CapHeight": 562, "Flags": 33, "StemV": 51, "MissingWidth": 600},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	document.AddFontFromBytes("fixture", "", font, nil)
-	document.AddPage()
-	document.SetFont("fixture", "", 4)
-	for _, center := range []float64{423, 489, 548} {
-		document.Rect(center-30, 650-625-8, 60, 12, "D")
-	}
-	for _, row := range rows {
-		for _, element := range row.Elements {
-			document.Text(element.X, 650-row.Y, element.S)
+	return syntheticBaselinePDFWithFontSize(t, rows, 4, func(document *gofpdf.Fpdf) {
+		for _, center := range []float64{423, 489, 548} {
+			document.Rect(center-30, 650-625-8, 60, 12, "D")
 		}
-	}
-	var output bytes.Buffer
-	if err := document.Output(&output); err != nil {
-		t.Fatal(err)
-	}
-	return output.Bytes()
+	})
 }
