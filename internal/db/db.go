@@ -1,11 +1,14 @@
 package db
 
 import (
+	"context"
 	"database/sql"
 	"embed"
 	"encoding/csv"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"math"
 	"os"
 	"path/filepath"
@@ -46,6 +49,7 @@ func NewDB(dbPath string) (*DB, error) {
 
 	d := &DB{conn: conn, path: absPath}
 	if err := d.migrate(); err != nil {
+		_ = conn.Close()
 		return nil, fmt.Errorf("failed to migrate database: %w", err)
 	}
 
@@ -112,12 +116,27 @@ func (d *DB) Close() error {
 }
 
 func (d *DB) migrate() error {
-	goose.SetBaseFS(embedMigrations)
-	if err := goose.SetDialect("sqlite3"); err != nil {
-		return fmt.Errorf("failed to set goose dialect: %w", err)
+	migrationFS, err := fs.Sub(embedMigrations, "migrations")
+	if err != nil {
+		return fmt.Errorf("failed to open migrations: %w", err)
 	}
-
-	if err := goose.Up(d.conn, "migrations"); err != nil {
+	provider, err := goose.NewProvider(goose.DialectSQLite3, d.conn, migrationFS)
+	if err != nil {
+		return fmt.Errorf("failed to create migration provider: %w", err)
+	}
+	ctx := context.Background()
+	version, err := provider.GetDBVersion(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to read migration version: %w", err)
+	}
+	// Preview builds applied 16/17 while 15 was reserved. Backfill only the
+	// explicit no-op reservation; keep strict checks for every other gap.
+	if version >= 16 {
+		if _, err := provider.ApplyVersion(ctx, 15, true); err != nil && !errors.Is(err, goose.ErrAlreadyApplied) {
+			return fmt.Errorf("failed to apply investment preview reservation: %w", err)
+		}
+	}
+	if _, err := provider.Up(ctx); err != nil {
 		return fmt.Errorf("failed to apply migrations: %w", err)
 	}
 

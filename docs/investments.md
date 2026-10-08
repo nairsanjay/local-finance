@@ -20,4 +20,4 @@ Use fictional, generated workbooks for tests. Never commit personal holdings, ac
 
 Zerodha documents dated holdings exports in its [holdings report guide](https://support.zerodha.com/category/console/portfolio/console-holdings/articles/holding-report), and distinguishes pledged from remaining available quantities in its [pledged holdings guide](https://support.zerodha.com/category/trading-and-markets/general-kite/kite-holdings/articles/p-symbol-kite-holdings).
 
-Migration versions 00016/00017 are retained for compatibility with existing preview databases. Version 00015 was reserved during development; Goose supports this gap, and no placeholder migration is required.
+Migrations are sequential: 00015 explicitly records the development reservation without changing schema or financial data, 00016 creates investment snapshots, and 00017 corrects earlier INDmoney valuations. Versions 00016/00017 retain their identities for existing preview databases. Startup backfills only the no-op reservation on previews that skipped 00015; every other missing migration remains an error.
