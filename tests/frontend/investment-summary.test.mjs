@@ -50,3 +50,12 @@ test('current-value-only reports keep acquisition costs unknown', () => {
   assert.equal(total.missingCosts, 1)
   assert.equal(total.missingValuations, 0)
 })
+
+test('portfolio grouping keeps delimiter-like provider and account names distinct', () => {
+  const totals = investmentTotals([
+    snapshot({ provider: 'Example|Broker', account_ref: 'DEMO', current_value: 40 }),
+    snapshot({ provider: 'Example', account_ref: 'Broker|DEMO', current_value: 60 }),
+  ])
+  assert.equal(totals[0].accounts, 2)
+  assert.equal(totals[0].currentValue, 100)
+})
