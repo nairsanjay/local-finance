@@ -38,6 +38,7 @@ import {
   WrappedView,
   SalaryView,
   InvestmentsView,
+  SplitwiseView,
   PlanningView,
   DataHealthView,
 } from '@/components/lazy-views'
@@ -89,6 +90,8 @@ const RootLayoutContent: React.FC = () => {
         return 'Data Health'
       case '/investments':
         return 'Investments'
+      case '/splitwise':
+        return 'Splitwise'
       case '/calendar':
         return 'Spending Calendar'
       case '/budget':
@@ -505,9 +508,7 @@ const calendarRoute = createRoute({
 const importRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/import',
-  validateSearch: (search: Record<string, unknown>): { tab?: 'investments' } => ({
-    tab: search.tab === 'investments' ? 'investments' : undefined,
-  }),
+  validateSearch: (search: Record<string, unknown>): { tab?: 'investments' | 'splitwise' } => ({ tab: search.tab === 'investments' || search.tab === 'splitwise' ? search.tab : undefined }),
   component: () => <StatementImportView initialTab={importRoute.useSearch().tab ?? 'bank'} />,
 })
 
@@ -663,6 +664,7 @@ const salaryRoute = createRoute({
 })
 
 const routeTree = rootRoute.addChildren([
+  createRoute({ getParentRoute: () => rootRoute, path: '/splitwise', component: SplitwiseView }),
   createRoute({
     getParentRoute: () => rootRoute,
     path: '/planning',

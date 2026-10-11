@@ -27,6 +27,8 @@ import {
 } from '@/lib/api'
 import { useSystemUpdate } from '@/hooks/use-system-update'
 import { MCPSettingsPanel } from './MCPSettingsPanel'
+import { SplitwiseMemberRuleRow } from '@/components/import/SplitwiseSettlements'
+import { useSplitwiseMembers } from '@/hooks/use-splitwise-members'
 import { Switch } from '@/components/ui/switch'
 import { useAuth } from '@/components/auth/AuthProvider'
 import { useTheme } from '@/components/theme-provider'
@@ -260,6 +262,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
     queryKey: ['rules'],
     queryFn: fetchRules,
   })
+
+  const splitwiseMembers = useSplitwiseMembers()
+  const memberRules = (splitwiseMembers.data ?? []).filter(member => member.pattern)
 
   const { data: parsers } = useQuery({
     queryKey: ['parsers'],
@@ -1371,8 +1376,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                         Rules
                       </CardTitle>
                       <CardDescription className="text-xs">
-                        Prioritized rules that map UPI VPAs, POS merchant keywords, and narrations
-                        to categories
+                        Category rules and Splitwise member regexes. Member rules require a matching CSV Payment and bank amount; they never classify a name match alone.
                       </CardDescription>
                     </div>
 
@@ -1400,11 +1404,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                         <Plus data-icon="inline-start" /> Add Rule
                       </Button>
 
-                      <Badge variant="secondary">{rules?.length || 0} Rules</Badge>
+                      <Badge variant="secondary">
+                        {(rules?.length ?? 0) + memberRules.length} Rules
+                      </Badge>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent className="p-0">
+                  {splitwiseMembers.error && <Alert><AlertDescription>{splitwiseMembers.error.message}</AlertDescription></Alert>}
                   <div className="overflow-x-auto">
                     <Table>
                       <TableHeader>
@@ -1516,6 +1523,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                             </TableCell>
                           </TableRow>
                         ))}
+                        {memberRules.map(member => <SplitwiseMemberRuleRow key={`${member.group}\0${member.name}`} member={member} />)}
                       </TableBody>
                     </Table>
                   </div>

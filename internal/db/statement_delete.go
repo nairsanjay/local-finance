@@ -39,6 +39,14 @@ func (d *DB) DeleteStatementImport(id string) (*StatementDeletion, error) {
 		if result.DeletedBills, err = deleted.RowsAffected(); err != nil {
 			return err
 		}
+		// A bank-backed Splitwise mapping depends on this statement's cash row.
+		// Remove it before deleting the bank row so it cannot become an orphaned
+		// accountless expense or retain a stale link after statement reimport.
+		// Independent expenses, group rules and ignored suppression remain intact.
+		if _, err := w.conn.Exec(`DELETE FROM splitwise_entries
+ WHERE transaction_id IN (SELECT id FROM transactions WHERE statement_import_id = ?)`, id); err != nil {
+			return err
+		}
 		deleted, err = w.conn.Exec(`DELETE FROM transactions WHERE statement_import_id = ?`, id)
 		if err != nil {
 			return err

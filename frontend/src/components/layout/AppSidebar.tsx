@@ -67,6 +67,7 @@ const mainNavItems: NavItem[] = [
 const intelligenceNavItems: NavItem[] = [
   { title: 'Savings & Planning', url: '/planning', icon: Target },
   { title: 'Investments', url: '/investments', icon: Briefcase },
+  { title: 'Splitwise', url: '/splitwise', icon: ArrowLeftRight },
   {
     title: 'Cash Flow & Sankey',
     url: '/cashflow',

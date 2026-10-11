@@ -92,7 +92,7 @@ func (d *DB) GetDataHealthAccounts() ([]models.DataHealthAccount, error) {
 	defer d.mu.RUnlock()
 	rows, err := d.conn.Query(`SELECT a.id,COALESCE(MAX(t.tx_date),''),COUNT(t.id),
  COALESCE(SUM(CASE WHEN t.id IS NOT NULL AND (COALESCE(t.category_id,'') IN ('','cat_others')) AND ` + financialActivityFilter("t") + ` THEN 1 ELSE 0 END),0)
- FROM accounts a LEFT JOIN transactions t ON t.account_id=a.id GROUP BY a.id ORDER BY a.id`)
+ FROM accounts a LEFT JOIN ledger_transactions t ON t.account_id=a.id GROUP BY a.id ORDER BY a.id`)
 	if err != nil {
 		return nil, err
 	}

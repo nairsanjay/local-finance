@@ -273,6 +273,10 @@ func (s *TransactionService) ImportStatement(filename string, r io.Reader, manua
 			}
 		}
 
+		if err := writer.ReconcileSplitwise(); err != nil {
+			return err
+		}
+
 		// 9. Recalculate account balance
 		if err := writer.RecalculateAccountBalance(account.ID); err != nil {
 			return err
@@ -523,12 +527,8 @@ func (s *TransactionService) matchCategory(pt parser.ParsedTransaction, rules []
 		return &transferCat
 	}
 
-	tx := models.Transaction{RawNarration: pt.RawNarration, CleanedPayee: pt.CleanedPayee, ReferenceNumber: pt.ReferenceNumber, UPIVPA: pt.UPIVPA, TxType: pt.TxType}
-	for _, r := range rules {
-		if r.MatchesTransaction(tx) {
-			catID := r.TargetCategoryID
-			return &catID
-		}
+	if category := models.MatchCategoryRule(models.Transaction{RawNarration: pt.RawNarration, CleanedPayee: pt.CleanedPayee, ReferenceNumber: pt.ReferenceNumber, UPIVPA: pt.UPIVPA, TxType: pt.TxType}, rules); category != nil {
+		return category
 	}
 
 	defaultCat := "cat_others"

@@ -65,7 +65,16 @@ func (d *DB) SaveRuleAndReapply(id *string, patch models.CategorizationRulePatch
 	return saved, count, nil
 }
 func (d *statementStore) reapplyRules(resetUnmatched bool) (int, error) {
-	return d.reapplyRulesMatching(resetUnmatched, "")
+	count, err := d.reapplyRulesMatching(resetUnmatched, "")
+	if err != nil {
+		return 0, err
+	}
+	rules, err := d.ListRules()
+	if err != nil {
+		return 0, err
+	}
+	extra, err := reapplySplitwiseRules(d.conn, rules)
+	return count + extra, err
 }
 
 // predicate is internal SQL; callers supply values separately.
@@ -131,15 +140,8 @@ func (d *statementStore) reapplyRulesMatching(resetUnmatched bool, predicate str
 			matchedCatID = &cid
 		}
 		tx := models.Transaction{RawNarration: item.narration, CleanedPayee: item.payee, ReferenceNumber: item.ref, UPIVPA: &item.vpa, TxType: models.TxType(item.txType)}
-		for _, r := range rules {
-			if matchedCatID != nil {
-				break
-			}
-			if r.MatchesTransaction(tx) {
-				cid := r.TargetCategoryID
-				matchedCatID = &cid
-				break
-			}
+		if matchedCatID == nil {
+			matchedCatID = models.MatchCategoryRule(tx, rules)
 		}
 
 		if matchedCatID != nil {
