@@ -18,7 +18,7 @@ import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/s
 import { Separator } from '@/components/ui/separator'
 import { OverviewTimeFrame } from '@/components/dashboard/OverviewTimeFrame'
 import type { OverviewRange } from '@/lib/overview-range'
-import { validSpendingMonth, type SpendingSearch } from '@/lib/spending'
+import { validSpendingMonth } from '@/lib/spending'
 import { OverviewCard } from '@/components/dashboard/OverviewCard'
 import { SpendingChart } from '@/components/dashboard/SpendingChart'
 import { CashFlowChart } from '@/components/dashboard/CashFlowChart'
@@ -44,7 +44,6 @@ import {
   SplitwiseView,
   PlanningView,
   DataHealthView,
-  SpendingDashboard,
 } from '@/components/lazy-views'
 import { InvestmentTotals } from '@/components/investments/InvestmentTotals'
 import { PrivacyProvider } from '@/components/privacy-provider'
@@ -84,8 +83,6 @@ const RootLayoutContent: React.FC = () => {
         return 'Dashboard'
       case '/transactions':
         return 'Transactions Ledger'
-      case '/spending':
-        return 'Spending'
       case '/cashflow':
         return 'Cash Flow & Sankey'
       case '/salary':
@@ -627,7 +624,8 @@ const cashflowRoute = createRoute({
   validateSearch: (search: Record<string, unknown>): CashFlowSearchParams => {
     const periodStr = (search.month as string) || (search.period as string) || undefined
     return {
-      month: periodStr || undefined,
+      month: typeof periodStr === 'string' && (validSpendingMonth(periodStr) || ['ALL', 'LAST_3_MONTHS'].includes(periodStr) || /^FY-\d{4}-\d{2}$/.test(periodStr)) ? periodStr : undefined,
+      node: typeof search.node === 'string' ? search.node : undefined,
     }
   },
   component: () => <CashFlowView />,
@@ -679,15 +677,6 @@ const salaryRoute = createRoute({
 })
 
 const routeTree = rootRoute.addChildren([
-  createRoute({
-    getParentRoute: () => rootRoute,
-    path: '/spending',
-    validateSearch: (search: Record<string, unknown>): SpendingSearch => ({
-      month: validSpendingMonth(search.month) ? search.month : undefined,
-      category: typeof search.category === 'string' ? search.category.trim() || undefined : undefined,
-    }),
-    component: SpendingDashboard,
-  }),
   createRoute({ getParentRoute: () => rootRoute, path: '/splitwise', component: SplitwiseView }),
   createRoute({
     getParentRoute: () => rootRoute,

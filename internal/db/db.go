@@ -2696,8 +2696,8 @@ func (d *DB) GetCashFlowIntelligence(period string) (*models.CashFlowIntelligenc
 			t.id, t.amount, t.payment_mode, t.cleaned_payee,
 			COALESCE(a.id, 'splitwise') as acc_id, COALESCE(a.bank_name, 'Splitwise (paid by others)'), COALESCE(a.account_type, 'SHARED'), COALESCE(a.account_number_mask, '') as mask,
 			COALESCE(a.nickname, '') as nickname, COALESCE(a.card_variant, '') as variant,
-			COALESCE(c.id, 'cat_others') as cat_id,
-			COALESCE(c.name, 'Others & Uncategorized') as cat_name,
+			COALESCE(c.id, 'uncat') as cat_id,
+			COALESCE(c.name, 'Uncategorized') as cat_name,
 			COALESCE(c.color_hex, '#94A3B8') as cat_color,
 			COALESCE(c.icon, 'HelpCircle') as cat_icon
 		FROM personal_transactions t
@@ -3026,11 +3026,11 @@ func (d *DB) GetCashFlowIntelligence(period string) (*models.CashFlowIntelligenc
 	prevCategorySpends := make(map[string]float64)
 	if res.PreviousMonth != "" {
 		prevRows, err := d.conn.Query(`
-			SELECT COALESCE(category_id, 'cat_others'), SUM(amount)
-			FROM personal_transactions
-			WHERE `+spendingFilter("")+`
+			SELECT COALESCE(c.id, 'uncat'), SUM(t.amount)
+			FROM personal_transactions t LEFT JOIN categories c ON c.id = t.category_id
+			WHERE `+spendingFilter("t")+`
 			  AND tx_date >= ? AND tx_date <= ?
-			GROUP BY category_id
+			GROUP BY COALESCE(c.id, 'uncat')
 		`, res.PreviousMonth+"-01", res.PreviousMonth+"-31")
 		if err == nil {
 			for prevRows.Next() {
@@ -3068,7 +3068,7 @@ func (d *DB) GetCashFlowIntelligence(period string) (*models.CashFlowIntelligenc
 		hRows, err := d.conn.Query(`
 			SELECT strftime('%Y-%m', tx_date) as m, COALESCE(SUM(amount), 0)
 			FROM personal_transactions
-			WHERE (category_id = ? OR (? = 'cat_others' AND category_id IS NULL))
+			WHERE (category_id = ? OR (? = 'uncat' AND NOT EXISTS (SELECT 1 FROM categories c WHERE c.id = personal_transactions.category_id)))
 			  AND `+spendingFilter("")+`
 			GROUP BY m
 			ORDER BY m DESC
@@ -3099,7 +3099,7 @@ func (d *DB) GetCashFlowIntelligence(period string) (*models.CashFlowIntelligenc
 		topQuery := fmt.Sprintf(`
 			SELECT cleaned_payee, payment_mode, SUM(amount), COUNT(id)
 			FROM personal_transactions
-			WHERE (category_id = ? OR (? = 'cat_others' AND category_id IS NULL))
+			WHERE (category_id = ? OR (? = 'uncat' AND NOT EXISTS (SELECT 1 FROM categories c WHERE c.id = personal_transactions.category_id)))
 			  AND `+spendingFilter("")+` AND %s
 			GROUP BY cleaned_payee, payment_mode
 			ORDER BY SUM(amount) DESC

@@ -66,7 +66,25 @@ func TestSpendingDrilldownMatchesOverview(t *testing.T) {
 			if err != nil || overview.TotalExpense != period.expected {
 				t.Fatalf("overview: %+v %v", overview, err)
 			}
+			cashflowPeriod := "ALL"
+			if period.start != "" {
+				cashflowPeriod = period.start[:7]
+			}
+			flow, err := database.GetCashFlowIntelligence(cashflowPeriod)
+			if err != nil || flow.Summary.TotalOutflow != overview.TotalExpense {
+				t.Fatalf("cashflow totals: %+v %v", flow, err)
+			}
 			for _, category := range overview.CategoryBreakdown {
+				found := false
+				for _, node := range flow.Sankey.Nodes {
+					if node.ID == "cat_"+category.CategoryID {
+						found = node.TotalValue == category.TotalAmount && node.TxCount == category.TxCount
+					}
+				}
+				if !found {
+					t.Fatalf("Sankey category differs from purchase breakdown: %+v", category)
+				}
+
 				var sum float64
 				count := 0
 				for page := 1; ; page++ {

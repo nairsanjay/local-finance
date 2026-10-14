@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import {
   LayoutDashboard,
-  ChartPie,
   ReceiptText,
   Calendar,
   UploadCloud,
@@ -93,9 +92,6 @@ export const CommandPalette: React.FC = () => {
           <CommandEmpty>No results found.</CommandEmpty>
 
           <CommandGroup heading="Navigation">
-            <CommandItem onSelect={() => runCommand(() => navigate({ to: '/spending' }))}>
-              <ChartPie className="size-4" /><span>Spending by Category & Month</span>
-            </CommandItem>
             <CommandItem onSelect={() => runCommand(() => navigate({ to: '/planning' }))}>
               <Target className="size-4" />
               <span>Savings Forecast</span>

@@ -30,7 +30,7 @@ export const SpendingChart: React.FC<{
         <CardTitle>Spending by category</CardTitle>
         <CardDescription>
           {onCategorySelect
-            ? 'Choose a category to see its purchases below.'
+            ? 'Choose a category to inspect its purchases.'
             : 'Spending categories across your accounts'}
         </CardDescription>
       </CardHeader>

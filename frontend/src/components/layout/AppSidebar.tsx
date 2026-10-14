@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button'
 import { Link, useRouterState } from '@tanstack/react-router'
 import {
   LayoutDashboard,
-  ChartPie,
   ReceiptText,
   Calendar,
   UploadCloud,
@@ -58,7 +57,6 @@ const mainNavItems: NavItem[] = [
     url: '/transactions',
     icon: ReceiptText,
   },
-  { title: 'Spending', url: '/spending', icon: ChartPie },
   {
     title: 'Calendar',
     url: '/calendar',
