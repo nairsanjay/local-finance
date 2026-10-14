@@ -1,5 +1,9 @@
 import { lazy } from 'react'
 
+export const SpendingDashboard = lazy(() =>
+  import('@/components/dashboard/SpendingDashboard').then((module) => ({ default: module.SpendingDashboard }))
+)
+
 export const TransactionTable = lazy(() =>
   import('@/components/transactions/TransactionTable').then((module) => ({
     default: module.TransactionTable,

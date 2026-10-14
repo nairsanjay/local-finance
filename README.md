@@ -502,6 +502,18 @@ Implement `ID()` with a stable, versioned format ID; `Info()` with the provider 
 
 The registry rejects unsupported files and files recognized by multiple adapters. Its metadata drives `/api/investments/formats` and the upload UI, while the shared service handles preview, import, file limits, and deduplication. Adding a provider requires no provider-specific changes to routes, storage, or frontend lists. Add a fictional fixture under `samples/investments/` and tests for detection, values, preview, and repeat imports; never check in personal statements.
 
+## Spending dashboard
+
+Open **Spending** in the sidebar for a compact category breakdown, total spending,
+and average purchase size. Choose a recorded month or use the calendar month
+picker for older history; **All time** includes the full imported ledger. Select
+a category to open its paginated purchases. The selected month and category are
+kept in the URL for bookmarks and browser history.
+
+Totals and purchases use personal Splitwise shares and omit transfers, excluded
+rows, and credits. Refunds are not deducted. Amounts, payees, and account names
+respect Discreet Mode. Missing statements can make recorded spending look lower.
+
 ## Monthly Review
 
 Overview now includes a compact review of the latest month with imported data. Choose **Understand what changed** to open the detailed review in Cash Flow, or use **Review month** there to inspect another month.

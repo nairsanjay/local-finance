@@ -331,6 +331,7 @@ func (d *DB) RecalculateAccountBalance(accountID string) error {
 type TransactionFilter struct {
 	StatementImportID string
 	StatementOnly     bool
+	SpendingOnly      bool
 	ReviewNeeded      bool
 	ID                string
 	AccountID         string
@@ -365,7 +366,10 @@ func (d *DB) ListTransactions(f TransactionFilter) ([]models.Transaction, int, e
 	if f.ReviewNeeded {
 		where = append(where, "COALESCE(t.category_id, '') IN ('', 'cat_others') AND "+financialActivityFilter("t"))
 	}
-	if f.CategoryID != "" {
+	if f.SpendingOnly && f.CategoryID == "uncat" {
+		// Match the overview's LEFT JOIN bucket, including missing categories.
+		where = append(where, "NOT EXISTS (SELECT 1 FROM categories c WHERE c.id = t.category_id)")
+	} else if f.CategoryID != "" {
 		where = append(where, "t.category_id = ?")
 		args = append(args, f.CategoryID)
 	}
@@ -400,11 +404,17 @@ func (d *DB) ListTransactions(f TransactionFilter) ([]models.Transaction, int, e
 	}
 
 	whereClause := strings.Join(where, " AND ")
+	if f.SpendingOnly {
+		whereClause += " AND " + spendingFilter("t")
+	}
 
 	// Count total
 	var total int
 	source := "ledger_transactions"
-	if f.StatementOnly || f.StatementImportID != "" {
+	if f.SpendingOnly {
+		// Use personal shares just as the spending overview does, not gross bank debits.
+		source = "personal_transactions"
+	} else if f.StatementOnly || f.StatementImportID != "" {
 		source = "transactions"
 	}
 	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM %s t WHERE %s", source, whereClause)
