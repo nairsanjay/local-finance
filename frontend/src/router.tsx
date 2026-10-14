@@ -18,6 +18,7 @@ import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/s
 import { Separator } from '@/components/ui/separator'
 import { OverviewTimeFrame } from '@/components/dashboard/OverviewTimeFrame'
 import type { OverviewRange } from '@/lib/overview-range'
+import { validSpendingMonth, type SpendingSearch } from '@/lib/spending'
 import { OverviewCard } from '@/components/dashboard/OverviewCard'
 import { SpendingChart } from '@/components/dashboard/SpendingChart'
 import { CashFlowChart } from '@/components/dashboard/CashFlowChart'
@@ -43,6 +44,7 @@ import {
   SplitwiseView,
   PlanningView,
   DataHealthView,
+  SpendingDashboard,
 } from '@/components/lazy-views'
 import { InvestmentTotals } from '@/components/investments/InvestmentTotals'
 import { PrivacyProvider } from '@/components/privacy-provider'
@@ -82,6 +84,8 @@ const RootLayoutContent: React.FC = () => {
         return 'Dashboard'
       case '/transactions':
         return 'Transactions Ledger'
+      case '/spending':
+        return 'Spending'
       case '/cashflow':
         return 'Cash Flow & Sankey'
       case '/salary':
@@ -674,6 +678,15 @@ const salaryRoute = createRoute({
 })
 
 const routeTree = rootRoute.addChildren([
+  createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/spending',
+    validateSearch: (search: Record<string, unknown>): SpendingSearch => ({
+      month: validSpendingMonth(search.month) ? search.month : undefined,
+      category: typeof search.category === 'string' ? search.category.trim() || undefined : undefined,
+    }),
+    component: SpendingDashboard,
+  }),
   createRoute({ getParentRoute: () => rootRoute, path: '/splitwise', component: SplitwiseView }),
   createRoute({
     getParentRoute: () => rootRoute,
